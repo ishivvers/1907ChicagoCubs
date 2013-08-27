@@ -109,9 +109,9 @@ X,Y = np.meshgrid( f.variables['lon'][:]-360, f.variables['lat'][:] )
 Z = f.variables[var][1000,0,2,:,:]  # 18:00 on the 1000th day for the 0th ensemble
 ax.plot_wireframe(X, Y, Z)
 # the MESONET points
+F = create_2d_interpolation(f, 1000, 2, 0)
 for stid, lat, lon, elev in mesonet:
     # interpolated
-    F = create_2d_interpolation(f, 1000, 2, 0)
     z = F(lon,lat)
     ax.scatter( lon, lat, z, c='g', alpha=0.75 )
     # nearest
