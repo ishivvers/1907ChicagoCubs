@@ -49,8 +49,6 @@ def integrate_daily_flux(f=Dataset('../../data/train/dswrf_sfc_latlon_subset_199
     
     # make a dictionary of lists of daily errors for each station
     differences = {}
-    for station in mesonet_locs:
-        differences[station[0]] = []
     
     print 'calculating differences:',maxindex,'total'
     for i,day in enumerate(xrange(maxindex)):
@@ -82,18 +80,24 @@ def integrate_daily_flux(f=Dataset('../../data/train/dswrf_sfc_latlon_subset_199
             model_integrated_flux = np.trapz(y,x)
             true_integrated_flux = mesonet_train[i][j+1]
             if stid in differences.keys():
-                differences[stid].append( true_integrated_flux-model_integrated_flux )
+                differences[stid][0].append( true_integrated_flux )
+                differences[stid][1].append( model_integrated_flux )
             else:
-                differences[stid] = true_integrated_flux-model_integrated_flux
+                differences[stid] = [ [true_integrated_flux], [model_integrated_flux] ]
 
     # finally, make a plot!
     print 'plotting it up!'
-    plt.figure( figsize=(12, 6) )
+    fig,axs = plt.subplots(nrows=3, ncols=1, sharex=True, figsize=(12, 6) )
     x = f.variables['time'][:maxindex]
     for stid in differences.keys():
-        y = differences[stid]
-        plt.plot( x, y, alpha=0.5 )
-    plt.xlabel('Hours since 00:00:00 01/01/1800')
-    plt.ylabel('True - Integrated Model (j m^2)')
+        y = np.array(differences[stid])
+        axs[0].plot( x, y[0], alpha=0.5 )
+        axs[1].plot( x, y[1], alpha=0.5 )
+        axs[2].plot( x, y[0]-y[1], alpha=0.5 )
+    axs[2].set_xlabel('Hours since 00:00:00 01/01/1800')
+    axs[0].set_ylabel('True Daily Energy (j/m^2)')
+    axs[1].set_ylabel('Modeled Integrated Flux (j/m^2)')
+    axs[2].set_ylabel('Difference (j/m^2)')
+    axs[0].set_title('Measured and Modeled Daily Energy')
     plt.show()
 
