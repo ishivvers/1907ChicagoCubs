@@ -1,6 +1,8 @@
 # 2013 UCB Data Science Workshop #
 ## [AMS Solar Energy Prediction](http://www.kaggle.com/c/ams-2014-solar-energy-prediction-contest) ##
 
+###_edit me!_###
+
 ---------------------------------------
 ### 1907 Chicago Cubs ###
 
@@ -12,8 +14,31 @@
 ---------------------------------------
 ### GitHub ###
 
+	# to download the GitHub repo:
 	git clone https://github.com/ishivvers/1907ChicagoCubs.git
-	
+	# put your code in a folder inside there, make your edits, and then run:
+	git add <your files>
+	git commit -m <your commit message>
+	git pull  # to pull and merge any changes
+	git push  # to push your changes to GitHub
+
+---------------------------------------
+### File Heirarchy ###
+
+	# your file heirarchy should be organized like this, so we can all copy/paste/share code:
+	<Some Folder>
+	  - 1907ChicagoCubs
+	    - readme.md
+	    - Clare
+	      - <Clare's code>
+	    - ...etc...
+	  - data
+	    - test
+	      - ...
+	    - train
+	      - ...
+	    - <other data>
+
 ---------------------------------------
 ### sketch ###
 
@@ -26,9 +51,8 @@
 ---------------------------------------
 ### to do ###
 
-- create GH repo, define hierarchy
- - develop on your branch, then pull/push to master GH
+- clone the GitHub repo
+ - develop on your local computer in your folder, then pull/push to GitHub (so others can see the code)
 - feature brainstorm
- - assign features to members
-- assign interpolation function to a member
+- figure out how best to average data, interpolate, etc.
 
