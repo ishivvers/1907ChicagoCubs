@@ -93,33 +93,3 @@ def return_nearest_value(f, lon, lat, day, hour, ens=0):
     j = np.argmin( np.abs(f.variables['lat'][:] - y) )
     val = f.variables[var][day,ens,hour,j,i]
     return val
-
-
-
-####################################################################################################
-## test: plot up the GEFS grid and the interpolated/nearest values at the MESONET points
-f = Dataset('../../data/test/dswrf_sfc_latlon_subset_20080101_20121130.nc','r') # radiation flux measure
-mesonet = np.recfromcsv('../../data/station_info.csv')
-
-fig = plt.figure()
-ax = fig.gca(projection='3d')
-# the GEFS grid
-var = f.variables.keys()[-1]        # the name of the variable encoded in f
-X,Y = np.meshgrid( f.variables['lon'][:]-360, f.variables['lat'][:] )
-Z = f.variables[var][1000,0,2,:,:]  # 18:00 on the 1000th day for the 0th ensemble
-ax.plot_wireframe(X, Y, Z)
-# the MESONET points
-F = create_2d_interpolation(f, 1000, 2, 0)
-for stid, lat, lon, elev in mesonet:
-    # interpolated
-    z = F(lon,lat)
-    ax.scatter( lon, lat, z, c='g', alpha=0.75 )
-    # nearest
-    z = return_nearest_value(f, lon, lat, 1000, 2, 0)
-    ax.scatter( lon, lat, z, c='r', alpha=0.75, marker='x' )
-    
-ax.set_xlabel('lon')
-ax.set_ylabel('lat')
-ax.set_zlabel(var)
-ax.set_title('green: interp. red: nearest')
-plt.show()
