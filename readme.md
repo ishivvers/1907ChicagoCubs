@@ -4,16 +4,15 @@
 ---------------------------------------
 ### 1907 Chicago Cubs ###
 
-
 - Isaac ::: ishivvers@berkeley.edu ::: (515) 419-1762
 - Clare ::: cmsaunders@berkeley.edu ::: (706) 207-6876
 - Alex ::: aga@berkeley.edu :::
-- Micheal ::: mbeloc@gmail.com ::: (214) 681-0107
+- Michael ::: mbeloc@gmail.com ::: (214) 681-0107
 
 ---------------------------------------
 ### GitHub ###
 
-	ENTER REPO LINK HERE
+	git clone https://github.com/ishivvers/1907ChicagoCubs.git
 	
 ---------------------------------------
 ### sketch ###
@@ -26,7 +25,6 @@
 
 ---------------------------------------
 ### to do ###
-
 
 - create GH repo, define hierarchy
  - develop on your branch, then pull/push to master GH
