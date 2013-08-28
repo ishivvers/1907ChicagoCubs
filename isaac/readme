@@ -1,6 +1,24 @@
-Outline:
+## Outline: ##
 
-datalib.py
- - handle reading/manipulating the data
+- datalib.py
+ - a library of generally-useful functions
+- exploration.py
+ - a set of scripts used for initial exploration of the data (in functional form)
 
 
+------------------------------------------------
+## to do: ##
+
+- get anaconda on anathem
+- write a function that provides a uniform metric for each model, based on some sort of k-fold CV. Probably just a wrapper around sklearn functions
+- use Ridge, lasso, or ElasticNet without any interpolation
+	- try to use Ridge with a single alpha, similar to the starter_code example
+	 - does it average/sum/... daily/modeled values?
+	- use RidgeCV to choose an alpha
+	- use sklearn.feature_selection.RFECV for feature selection
+	- see if this makes sense, is informative
+- better features
+ - time-based?
+  - averaged over last few hours, plus over day, plus derivatives?
+  - can we use time from the future? (the next day's 00:00 prediction includes new observations)
+ - local position-weighted averages, instead of all data

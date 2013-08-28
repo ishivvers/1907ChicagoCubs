@@ -35,23 +35,25 @@ def plot_interpolated(f=Dataset('../../data/test/dswrf_sfc_latlon_subset_2008010
     ax.set_title('green: interp. red: nearest')
     plt.show()
 
-def integrate_daily_flux(f=Dataset('../../data/train/dswrf_sfc_latlon_subset_19940101_20071231.nc','r'), maxindex=None):
+def compare_to_model_flux(f=Dataset('../../data/train/dswrf_sfc_latlon_subset_19940101_20071231.nc','r'), minindex=None, maxindex=None):
     '''
     Integrate the daily GEFS shortwave flux (averaged over models and 
     interpolated to MESONET locations) and compare to the training data.
-    If maxindex is given, only plots out that many days (this is time-intensive!).
+    If minindex or maxindex is given, only plots out that range (this is time-intensive!).
     '''
     var = f.variables.keys()[-1]
     mesonet_train = np.recfromcsv('../../data/train.csv')
     mesonet_locs = np.recfromcsv('../../data/station_info.csv')
+    if minindex==None:
+        minindex = 0
     if maxindex==None:
         maxindex = f.variables[var].shape[0]
     
     # make a dictionary of lists of daily errors for each station
-    differences = {}
+    errors = {}
     
-    print 'calculating differences:',maxindex,'total'
-    for i,day in enumerate(xrange(maxindex)):
+    print 'calculating errors:',maxindex-minindex,'total'
+    for i,day in enumerate(xrange(minindex,maxindex)):
         print i
         daily_fluxes = {} # a dictionary of lists recording the daily flux vectors for each station
         for hour in xrange(f.variables[var].shape[2]):
@@ -71,7 +73,7 @@ def integrate_daily_flux(f=Dataset('../../data/train/dswrf_sfc_latlon_subset_199
                     daily_fluxes[stid].append( ensemble_mean )
                 else:
                     daily_fluxes[stid] = [ensemble_mean]
-        # integrate the daily flux vector and append to the differences dictionary
+        # integrate the daily flux vector and append to the errors dictionary
         #  fluxes are in joules per second per meter squared, so we should
         #  integrate over time in seconds
         for j,stid in enumerate(daily_fluxes.keys()):
@@ -79,18 +81,18 @@ def integrate_daily_flux(f=Dataset('../../data/train/dswrf_sfc_latlon_subset_199
             y = daily_fluxes[stid]
             model_integrated_flux = np.trapz(y,x)
             true_integrated_flux = mesonet_train[i][j+1]
-            if stid in differences.keys():
-                differences[stid][0].append( true_integrated_flux )
-                differences[stid][1].append( model_integrated_flux )
+            if stid in errors.keys():
+                errors[stid][0].append( true_integrated_flux )
+                errors[stid][1].append( model_integrated_flux )
             else:
-                differences[stid] = [ [true_integrated_flux], [model_integrated_flux] ]
+                errors[stid] = [ [true_integrated_flux], [model_integrated_flux] ]
 
     # finally, make a plot!
     print 'plotting it up!'
     fig,axs = plt.subplots(nrows=3, ncols=1, sharex=True, figsize=(12, 6) )
-    x = f.variables['time'][:maxindex]
-    for stid in differences.keys():
-        y = np.array(differences[stid])
+    x = f.variables['time'][minindex:maxindex]
+    for stid in errors.keys():
+        y = np.array(errors[stid])
         axs[0].plot( x, y[0], alpha=0.5 )
         axs[1].plot( x, y[1], alpha=0.5 )
         axs[2].plot( x, y[0]-y[1], alpha=0.5 )
