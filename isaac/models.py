@@ -45,7 +45,7 @@ def RunLassoCV( trainX, trainY, testX, verbose=True, save=True ):
 trainX = load_GEFS('train', variables=['dlwrf_sfc','dswrf_sfc','tcdc_eatm','tmp_2m'])
 times,trainY = load_MESONET('train.csv')
 testX = load_GEFS('test', variables=['dlwrf_sfc','dswrf_sfc','tcdc_eatm','tmp_2m'])
-model = RunLassoCVParallel( trainX, trainY, testX, np.logspace(-1,4,50) )
+model = RunLassoCVParallel( trainX, trainY, testX, np.logspace(-1,4,20) )
 # display the importance of various variables
 plt.figure(figsize=(14,4))
 plt.imshow(model.coef_)
@@ -61,6 +61,7 @@ def RunLassoCVParallel( trainX, trainY, testX, alphas, verbose=True, save=True )
     model = linear_model.Lasso(normalize=True)
     cvs = grid_search.GridSearchCV(model, {'alpha':alphas}, n_jobs=cpu_count()/2, verbose=int(verbose))
     cvs.fit( trainX, trainY )
+    model = cvs.best_estimator_
     
     if verbose: print '\nProducing estimates','#'*20,'\n'
     predictions = model.predict( testX )
