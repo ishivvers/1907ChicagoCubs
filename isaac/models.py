@@ -53,7 +53,7 @@ plt.xlabel('feature')
 plt.ylabel('model')
 plt.show()
 '''
-def RunLassoCVParallel( trainX, trainY, testX, alphas, verbose=True, save=True, n_jobs=int(.75*cpu_count()) ):
+def RunLassoCVParallel( trainX, trainY, testX, alphas, verbose=True, save=True, n_jobs=int(.75*mp.cpu_count()) ):
     '''
     Run a || grid search for optimal parameters.
     '''
@@ -72,8 +72,6 @@ def RunLassoCVParallel( trainX, trainY, testX, alphas, verbose=True, save=True, 
     return model
 
     
-=======
-
 
 def InterpolateDailyFlux(args):
     '''
@@ -197,4 +195,3 @@ def SimpleInterpolatedFlux(f=Dataset('../../data/train/dswrf_sfc_latlon_subset_1
 if __name__ == '__main__':
     ParallelInterpolatedFlux()
     
->>>>>>> 4663f9e0d916417758e544c69915e36c75db947b
