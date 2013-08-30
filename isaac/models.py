@@ -53,13 +53,13 @@ plt.xlabel('feature')
 plt.ylabel('model')
 plt.show()
 '''
-def RunLassoCVParallel( trainX, trainY, testX, alphas, verbose=True, save=True ):
+def RunLassoCVParallel( trainX, trainY, testX, alphas, verbose=True, save=True, n_jobs=int(.75*cpu_count()) ):
     '''
     Run a || grid search for optimal parameters.
     '''
     if verbose: print '\nChoosing best alpha and fitting model','#'*20,'\n'
     model = linear_model.Lasso(normalize=True)
-    cvs = grid_search.GridSearchCV(model, {'alpha':alphas}, n_jobs=cpu_count()/2, verbose=int(verbose))
+    cvs = grid_search.GridSearchCV(model, {'alpha':alphas}, n_jobs=n_jobs, verbose=int(verbose))
     cvs.fit( trainX, trainY )
     model = cvs.best_estimator_
     
