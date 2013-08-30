@@ -73,77 +73,6 @@ def RunLassoCVParallel( trainX, trainY, testX, alphas, verbose=True, save=True )
 
 
 
-def InterpolateDailyFlux(args):
-    '''
-    Provide the integrated daily GEFS shortwave flux (averaged over models
-    and interpolated to MESONET locations) for a single day.
-    day: index of the day to integrate in f
-    hours: np.array of the hours dimension
-    array: np.array of all of the data for that day, shape=(11, 5, 9, 16)
-    lon: np.array of the longitude dimension
-    lat: np.array of the latitude dimension
-    mesonet_locs: a np.recfromcsv record of the mesonet locations
-    '''
-    day, hours, array, lon, lat, mesonet_locs = args
-    print day,
-    daily_fluxes = {} # a dictionary of floats recording the daily flux vectors for each station
-    for hour in xrange(array.shape[1]):
-        ens_fluxes = {} # a dictionary of fluxes from each model for each station at this time
-        for ens in xrange(array.shape[0]):
-            F = interp2d(lon, lat, array[ens,hour,:,:], kind='linear', bounds_error=True)
-            for station in mesonet_locs:
-                loc_flux = F( station[2], station[1] )
-                if station[0] in ens_fluxes.keys():
-                    ens_fluxes[station[0]].append(loc_flux)
-                else:
-                    ens_fluxes[station[0]] = [loc_flux]
-        # average over models, and append to the daily flux vector dictionary
-        for stid in ens_fluxes.keys():
-            ensemble_mean = np.mean(ens_fluxes[stid])
-            if stid in daily_fluxes.keys():
-                daily_fluxes[stid].append( ensemble_mean )
-            else:
-                daily_fluxes[stid] = [ensemble_mean]
-    # integrate the daily flux vector and add to submissions
-    #  fluxes are in joules per second per meter squared, so we should
-    #  integrate over time in seconds
-    x = hours * 3600
-    for j,stid in enumerate(daily_fluxes.keys()):
-        y = daily_fluxes[stid]
-        model_integrated_flux = np.trapz(y,x)
-        daily_fluxes[stid] = model_integrated_flux
-    return daily_fluxes
-
-
-def ParallelInterpolatedFlux(f=Dataset('../../data/train/dswrf_sfc_latlon_subset_19940101_20071231.nc','r')):
-    '''
-    Produce a submission which is simply the integrated (interpolated, model-averaged) flux
-    at the locations of the MESONET points.  This is slow, so it is 
-    done parallel-wise with the multiprocessing package.
-    '''
-    days = range( f.variables['time'].shape[0] )
-    hours = f.variables['fhour'][:]
-    lon = f.variables['lon'][:]-360
-    lat = f.variables['lat'][:]
-    var = f.variables.keys()[-1]
-    arrays = [f.variables[var][:][d] for d in days]
-    mesonet_locs = np.recfromcsv('../../data/station_info.csv')
-    args = [[d, hours, arrays[d], lon, lat, mesonet_locs] for d in days]
-    
-    pool = mp.Pool( mp.cpu_count() ) # use all the processors you have!
-    submissions = pool.map( InterpolateDailyFlux, args )
-    # finally, spit it out as a true submission
-
-    names = [m[0] for m in mesonet_locs]
-    predictions = []
-    for day in days:
-        row = []
-        for name in names:
-            row.append( submissions[day][name] )
-        predictions.append(row)
-    save_submission(np.array(predictions), 'InterpFlux_submission.csv')
-
-
 def SimpleInterpolatedFlux(f=Dataset('../../data/train/dswrf_sfc_latlon_subset_19940101_20071231.nc','r')):
     '''
     Integrate the daily GEFS shortwave flux (averaged over models and 
@@ -192,6 +121,4 @@ def SimpleInterpolatedFlux(f=Dataset('../../data/train/dswrf_sfc_latlon_subset_1
     save_submission(predictions, 'InterpFlux_submission.csv')
 
 
-if __name__ == '__main__':
-    ParallelInterpolatedFlux()
     
