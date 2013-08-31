@@ -11,11 +11,10 @@
 ------------------------------------------------
 ## to do: ##
 
-- implement a complete model that's simply interpolation
-- write a function that provides a uniform metric for each model, based on some sort of k-fold CV. Probably just a wrapper around sklearn functions
 - better features
  - use sklearn.feature_selection.RFECV for feature selection
  - time-based?
   - averaged over last few hours, plus over day, plus derivatives?
  - local position-weighted averages, instead of all data
  - different directions? I.E. East, North, West, South local averages. (maybe 2 distances)
+ - 

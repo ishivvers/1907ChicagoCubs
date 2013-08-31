@@ -10,6 +10,8 @@ from time import sleep
 import numpy as np
 from scipy.interpolate import interp2d
 import csv
+import pickle
+from sklearn import metrics
 
 VARIABLE_NAMES = ['apcp_sfc','dlwrf_sfc','dswrf_sfc','pres_msl','pwat_eatm','spfh_2m','tcdc_eatm',
                   'tcolc_eatm','tmax_2m','tmin_2m','tmp_2m','tmp_sfc','ulwrf_sfc','ulwrf_tatm','uswrf_sfc']
@@ -51,6 +53,7 @@ def map_variable_movie(f, ens=0):
             #sleep(.05)            # uncomment to slow down animation, or if it freezes
             lines.remove()
             label.remove()
+
 
 
 # for example, find the interpolated value at 265.5, 31.5 at 12:00 on the 10th day for the 1st ensemble member
@@ -127,8 +130,8 @@ def load_MESONET(name, data_dir='../../data/'):
     times = data[:,0].astype(int)
     Y = data[:,1:]
     return times,Y
-	
-	
+
+
 def load_GEFS(which, variables, data_dir='../../data/', average_hours=True, average_models=True):
     '''
     Load up the GEFS files.
@@ -171,8 +174,300 @@ def load_GEFS(which, variables, data_dir='../../data/', average_hours=True, aver
     X = np.hstack( tuple(all_variables) )
     
     return X
+
+
+def split_train( trainX, trainY, l=1796 ):
+    '''
+    Provides a quick way to seperate our training data into two sets
+    to do internal comparisions.  Default is to slice off the length
+    of the true test set (1796 values).
+    Returns s_trainX, s_trainY, s_testX, s_testY
+    '''
+    return trainX[:-l], trainY[:-l], trainX[-l:], trainY[-l:]
+
+def MAE( trueY, modelY ):
+    '''
+    Returns the Mean Absolute Error between arrays modelY and trueY
+    (both should be 1D arrays).
+    Use to test the quality of different models.
+    
+    For example, split your training set into two parts, reserving
+    some fraction for a fake testing set.  Train your data only on
+    the first part, and then produce modeled estimates for the second
+    part.  Then use this function to compare between your model predictions
+    and the true values for the fake testing set.
+    
+    Should give a reasonable number to compare to the leaderboard scores if 
+    the fake testing set is the same length as the true.
+    '''
+    return metrics.mean_absolute_error(trueY, modelY)
+
+
+class features:
+    '''
+    A class to handle all feature generation crap for the AMS Solar Energy Project.
+    
+    '''
+    
+    def __init__( self, which='train', verbose=False ):
+        self.features = np.array([])
+        self.nfeatures = 0
+        self.which = which
+        if self.which not in ['test','train']:
+            raise Exception('which must be either test or train')
+        self.verbose = verbose
+        self.mesonet_locs = np.recfromcsv('../../data/station_info.csv')
+    
+    ##################################################################
+    ## HELPER FUNCTIONS
+    ##################################################################
+    def save(self, fname):
+        '''
+        Save a pickled representation of this feature set.
+        '''
+        pickle.dump( open(fname,'w'), self.features )
+    
+    def _integ(self, f):
+        '''
+        Integrates daily values over the variable in f, and averages over models.
+        Returns a feature array.
+        '''
+        var = f.variables.keys()[-1]
+        arr = np.mean(f.variables[val][:], axis=1) # average over all models
+        X = f.variables['fhour'][:] * 3600
+        i_arr = np.trapz( arr, X, axis=1 )         # integrate over hours
+        features = i_arr.reshape( i_arr.shape[0], i_arr.shape[1]*i_arr.shape[2] )
+        return features                            # return the array with shape=(n_timesteps, n_features)
     
     
+    ##################################################################
+    ## FEATURES
+    ##################################################################
+    def _IDSWF(self):
+        '''
+        Integrated Short-Wave Flux
+        '''
+        if self.which == 'train':
+            f=Dataset('../../data/train/dswrf_sfc_latlon_subset_19940101_20071231.nc','r')
+        else:
+            f=Dataset('../../data/test/dswrf_sfc_latlon_subset_20080101_20121130.nc','r')
+        features = self._integ(f)
+        self.features = np.hstack( (self.features,features) )
+        
+    def _IDSWFfY(self):
+        '''
+        Integrated Short-Wave Flux from Yesterday
+        '''
+        if self.which == 'train':
+            f=Dataset('../../data/train/dswrf_sfc_latlon_subset_19940101_20071231.nc','r')
+        else:
+            f=Dataset('../../data/test/dswrf_sfc_latlon_subset_20080101_20121130.nc','r')
+        features = self._integ(f)
+        newfeatures = np.empty_like(features)
+        newfeatures[1:] = features[:-1]
+        newfeatures[0] = features[0]
+        self.features = np.hstack( (self.features,newfeatures) )
+
+    def _IDSWFfT(self):
+        '''
+        Integrated Short-Wave Flux from Tomorrow
+        '''
+        if self.which == 'train':
+            f=Dataset('../../data/train/dswrf_sfc_latlon_subset_19940101_20071231.nc','r')
+        else:
+            f=Dataset('../../data/test/dswrf_sfc_latlon_subset_20080101_20121130.nc','r')
+        features = self._integ(f)
+        newfeatures = np.empty_like(features)
+        newfeatures[:-1] = features[1:]
+        newfeatures[-1] = features[-1]
+        self.features = np.hstack( (self.features,newfeatures) )
+
+    def _IDLWF(self):
+        '''
+        Integrated Long-Wave Flux
+        '''
+        if self.which == 'train':
+            f=Dataset('../../data/train/dlwrf_sfc_latlon_subset_19940101_20071231.nc','r')
+        else:
+            f=Dataset('../../data/test/dlwrf_sfc_latlon_subset_20080101_20121130.nc','r')
+        features = self._integ(f)
+        self.features = np.hstack( (self.features,features) )
+        
+    def _IDLWFfY(self):
+        '''
+        Integrated Long-Wave Flux from Yesterday
+        '''
+        if self.which == 'train':
+            f=Dataset('../../data/train/dlwrf_sfc_latlon_subset_19940101_20071231.nc','r')
+        else:
+            f=Dataset('../../data/test/dlwrf_sfc_latlon_subset_20080101_20121130.nc','r')
+        features = self._integ(f)
+        newfeatures = np.empty_like(features)
+        newfeatures[1:] = features[:-1]
+        newfeatures[0] = features[0]
+        self.features = np.hstack( (self.features,newfeatures) )
+
+    def _IDLWFfT(self):
+        '''
+        Integrated Long-Wave Flux from Tomorrow
+        '''
+        if self.which == 'train':
+            f=Dataset('../../data/train/dlwrf_sfc_latlon_subset_19940101_20071231.nc','r')
+        else:
+            f=Dataset('../../data/test/dlwrf_sfc_latlon_subset_20080101_20121130.nc','r')
+        features = self._integ(f)
+        newfeatures = np.empty_like(features)
+        newfeatures[:-1] = features[1:]
+        newfeatures[-1] = features[-1]
+        self.features = np.hstack( (self.features,newfeatures) )
     
+    def _MCC(self):
+        '''
+        Mean Cloud Cover
+        '''
+        if self.which == 'train':
+            f=Dataset('../../data/train/tcdc_eatm_latlon_subset_19940101_20071231.nc','r')
+        else:
+            f=Dataset('../../data/test/tcdc_eatm_latlon_subset_20080101_20121130.nc','r')
+        var = f.variables.keys()[-1]
+        arr = np.mean(f.variables[var][:], axis=1)  # average over all models
+        arr = np.mean(arr, axis=1)                  # average over all hours
+        features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
+        self.features = np.hstack( (self.features,features) )
+        
+    def _MCCfY(self):
+        '''
+        Mean Cloud Cover from Yesterday
+        '''
+        if self.which == 'train':
+            f=Dataset('../../data/train/tcdc_eatm_latlon_subset_19940101_20071231.nc','r')
+        else:
+            f=Dataset('../../data/test/tcdc_eatm_latlon_subset_20080101_20121130.nc','r')
+        var = f.variables.keys()[-1]
+        arr = np.mean(f.variables[var][:], axis=1)  # average over all models
+        arr = np.mean(arr, axis=1)                  # average over all hours
+        features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
+        newfeatures = np.empty_like(features)
+        newfeatures[1:] = features[:-1]
+        newfeatures[0] = features[0]
+        self.features = np.hstack( (self.features,newfeatures) )
     
+    def _MCCfT(self):
+        '''
+        Mean Cloud Cover from Tomorrow
+        '''
+        if self.which == 'train':
+            f=Dataset('../../data/train/tcdc_eatm_latlon_subset_19940101_20071231.nc','r')
+        else:
+            f=Dataset('../../data/test/tcdc_eatm_latlon_subset_20080101_20121130.nc','r')
+        var = f.variables.keys()[-1]
+        arr = np.mean(f.variables[var][:], axis=1)  # average over all models
+        arr = np.mean(arr, axis=1)                  # average over all hours
+        features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
+        newfeatures = np.empty_like(features)
+        newfeatures[:-1] = features[1:]
+        newfeatures[-1] = features[-1]
+        self.features = np.hstack( (self.features,newfeatures) )
+
+    def _AP(self):
+        '''
+        Accumulated Precipitation
+        '''
+        if self.which == 'train':
+            f=Dataset('../../data/train/tcdc_eatm_latlon_subset_19940101_20071231.nc','r')
+        else:
+            f=Dataset('../../data/test/tcdc_eatm_latlon_subset_20080101_20121130.nc','r')
+        var = f.variables.keys()[-1]
+        arr = np.mean(f.variables[var][:], axis=1)  # average over all models
+        arr = np.sum(arr, axis=1)                   # sum over all hours
+        features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
+        self.features = np.hstack( (self.features,features) )
+
+    def _APfY(self):
+        '''
+        Accumulated Precipitation from Yesterday
+        '''
+        if self.which == 'train':
+            f=Dataset('../../data/train/tcdc_eatm_latlon_subset_19940101_20071231.nc','r')
+        else:
+            f=Dataset('../../data/test/tcdc_eatm_latlon_subset_20080101_20121130.nc','r')
+        var = f.variables.keys()[-1]
+        arr = np.mean(f.variables[var][:], axis=1)  # average over all models
+        arr = np.sum(arr, axis=1)                   # sum over all hours
+        features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
+        newfeatures = np.empty_like(features)
+        newfeatures[1:] = features[:-1]
+        newfeatures[0] = features[0]
+        self.features = np.hstack( (self.features,newfeatures) )
     
+    def _APfT(self):
+        '''
+        Accumulated Precipitation from Tomorrow
+        '''
+        if self.which == 'train':
+            f=Dataset('../../data/train/tcdc_eatm_latlon_subset_19940101_20071231.nc','r')
+        else:
+            f=Dataset('../../data/test/tcdc_eatm_latlon_subset_20080101_20121130.nc','r')
+        var = f.variables.keys()[-1]
+        arr = np.mean(f.variables[var][:], axis=1)  # average over all models
+        arr = np.sum(arr, axis=1)                   # sum over all hours
+        features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
+        newfeatures = np.empty_like(features)
+        newfeatures[:-1] = features[1:]
+        newfeatures[-1] = features[-1]
+        self.features = np.hstack( (self.features,newfeatures) )
+    
+    def _MT(self):
+        '''
+        Max Temperature
+        '''
+        if self.which == 'train':
+            f=Dataset('../../data/train/tmp_2m_latlon_subset_19940101_20071231.nc','r')
+        else:
+            f=Dataset('../../data/test/tmp_2m_latlon_subset_20080101_20121130.nc','r')
+        var = f.variables.keys()[-1]
+        arr = np.max(f.variables[var][:], axis=2) # take the max value on the hours axis
+        arr = np.mean(arr, axis=1)                # average over all models
+        features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
+        self.features = np.hstack( (self.features,features) )
+    
+    def _MTfY(self):
+        '''
+        Max Temperature from Yesterday
+        '''
+        if self.which == 'train':
+            f=Dataset('../../data/train/tmp_2m_latlon_subset_19940101_20071231.nc','r')
+        else:
+            f=Dataset('../../data/test/tmp_2m_latlon_subset_20080101_20121130.nc','r')
+        var = f.variables.keys()[-1]
+        arr = np.max(f.variables[var][:], axis=2) # take the max value on the hours axis
+        arr = np.mean(arr, axis=1)                # average over all models
+        features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
+        newfeatures = np.empty_like(features)
+        newfeatures[1:] = features[:-1]
+        newfeatures[0] = features[0]
+        self.features = np.hstack( (self.features,newfeatures) )
+
+    def _MTfT(self):
+        '''
+        Max Temperature from Tomorrow
+        '''
+        if self.which == 'train':
+            f=Dataset('../../data/train/tmp_2m_latlon_subset_19940101_20071231.nc','r')
+        else:
+            f=Dataset('../../data/test/tmp_2m_latlon_subset_20080101_20121130.nc','r')
+        var = f.variables.keys()[-1]
+        arr = np.max(f.variables[var][:], axis=2) # take the max value on the hours axis
+        arr = np.mean(arr, axis=1)                # average over all models
+        features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
+        newfeatures = np.empty_like(features)
+        newfeatures[:-1] = features[1:]
+        newfeatures[-1] = features[-1]
+        self.features = np.hstack( (self.features,newfeatures) )
+
+
+
+        
+        
+        
+        
