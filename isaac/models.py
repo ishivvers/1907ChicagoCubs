@@ -45,7 +45,7 @@ def RunLassoCV( trainX, trainY, testX, verbose=True, save=True ):
 trainX = load_GEFS('train', variables=['dlwrf_sfc','dswrf_sfc','tmp_2m'])
 times,trainY = load_MESONET('train.csv')
 testX = load_GEFS('test', variables=['dlwrf_sfc','dswrf_sfc','tmp_2m'])
-model = RunLassoCVParallel( trainX, trainY, testX, np.logspace(-1,4,20) )
+model, predictions = RunLassoCVParallel( trainX, trainY, testX, np.logspace(-1,4,20) )
 # display the importance of various variables
 plt.figure(figsize=(14,4))
 plt.imshow(model.coef_)
@@ -55,7 +55,7 @@ plt.show()
 '''
 def RunLassoCVParallel( trainX, trainY, testX, alphas, verbose=True, save=True, n_jobs=int(.75*mp.cpu_count()) ):
     '''
-    Run a || grid search for optimal parameters.
+    Run a || grid search for optimal alpha parameter in a Lasso model.
     '''
     if verbose: print '\nChoosing best alpha and fitting model','#'*20,'\n'
     model = linear_model.Lasso(normalize=True)
@@ -69,14 +69,32 @@ def RunLassoCVParallel( trainX, trainY, testX, alphas, verbose=True, save=True, 
     
     if verbose: print '\nComplete.'
     
-    return model
+    return model, predictions
 
     
+def RunElasticNetCVParallel( trainX, trainY, testX, params, verbose=True, save=True, n_jobs=int(.75*mp.cpu_count()) ):
+    '''
+    Run a || grid search for optimal parameters in an Elastic Net model.
+    '''
+    if verbose: print '\nChoosing best parameters and fitting model','#'*20,'\n'
+    model = linear_model.ElasticNet(normalize=True)
+    cvs = grid_search.GridSearchCV(model, params, n_jobs=n_jobs, verbose=int(verbose))
+    cvs.fit( trainX, trainY )
+    model = cvs.best_estimator_
 
+    if verbose: print '\nProducing estimates','#'*20,'\n'
+    predictions = model.predict( testX )
+    if save: save_submission( predictions, 'ElasticNetCV_submission.csv' )
+
+    if verbose: print '\nComplete.'
+
+    return model, predictions
+    
 def SimpleInterpolatedFlux(f=Dataset('../../data/train/dswrf_sfc_latlon_subset_19940101_20071231.nc','r')):
     '''
     Integrate the daily GEFS shortwave flux (averaged over models and 
     interpolated to MESONET locations) and return the result as a submission.
+    This is slow.
     '''
     var = f.variables.keys()[-1]
     mesonet_locs = np.recfromcsv('../../data/station_info.csv')
@@ -122,3 +140,18 @@ def SimpleInterpolatedFlux(f=Dataset('../../data/train/dswrf_sfc_latlon_subset_1
 
 
 
+
+######################################################
+# Run an ElasticNet model on the calculated features of our data,
+# witholding part as a 'test' set.
+# Grid search for optimal parameters using the || gridsearch
+# function.
+######################################################
+F = features( which='train', verbose=True )
+F.calc_all_features()
+times, all_Y = load_MESONET('train.csv')
+trainX, trainY, testX, testY = split_train( F.features, all_Y )
+params = {'alpha':np.logspace(0,3,25), 'l1_ratio':np.linspace(0,1,10)}
+model, predictions = RunElasticNetCVParallel( trainX, trainY, testX, params )
+print 'Best model parameters:', model.get_params()
+print 'Best model MAE:', MAE( testY, predictions )

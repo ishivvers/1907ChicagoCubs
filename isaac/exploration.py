@@ -103,3 +103,4 @@ def compare_to_model_flux(f=Dataset('../../data/train/dswrf_sfc_latlon_subset_19
     axs[0].set_title('Measured and Modeled Daily Energy')
     plt.show()
 
+

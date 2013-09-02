@@ -11,6 +11,7 @@ import numpy as np
 from scipy.interpolate import interp2d
 import csv
 import pickle
+import inspect
 from sklearn import metrics
 
 VARIABLE_NAMES = ['apcp_sfc','dlwrf_sfc','dswrf_sfc','pres_msl','pwat_eatm','spfh_2m','tcdc_eatm',
@@ -206,17 +207,14 @@ def MAE( trueY, modelY ):
 class features:
     '''
     A class to handle all feature generation crap for the AMS Solar Energy Project.
-    
     '''
-    
     def __init__( self, which='train', verbose=False ):
-        self.features = np.array([])
-        self.nfeatures = 0
+        self.features = None
         self.which = which
         if self.which not in ['test','train']:
             raise Exception('which must be either test or train')
         self.verbose = verbose
-        self.mesonet_locs = np.recfromcsv('../../data/station_info.csv')
+        #self.mesonet_locs = np.recfromcsv('../../data/station_info.csv')  # needed only for interpolated features
     
     ##################################################################
     ## HELPER FUNCTIONS
@@ -227,19 +225,53 @@ class features:
         '''
         pickle.dump( open(fname,'w'), self.features )
     
-    def _integ(self, f):
+    def load(self, fname):
+        '''
+        Load the features from a pickle file.
+        '''
+        self.features = pickle.load( open(fname,'r') )
+    
+    def integ(self, f):
         '''
         Integrates daily values over the variable in f, and averages over models.
         Returns a feature array.
         '''
         var = f.variables.keys()[-1]
-        arr = np.mean(f.variables[val][:], axis=1) # average over all models
+        arr = np.mean(f.variables[var][:], axis=1) # average over all models
         X = f.variables['fhour'][:] * 3600
         i_arr = np.trapz( arr, X, axis=1 )         # integrate over hours
         features = i_arr.reshape( i_arr.shape[0], i_arr.shape[1]*i_arr.shape[2] )
         return features                            # return the array with shape=(n_timesteps, n_features)
     
+    def calc_all_features(self):
+        '''
+        Use the inspect module to calculate all features. Automatically
+        runs all features defined with an underscore at the front of the name.
+        '''
+        feat_funcs = [f for f in inspect.getmembers(self) if  (f[0][0]=='_' and f[0][1]!='_' and inspect.ismethod(f[1]))]
+        for f in feat_funcs:
+            if self.verbose: print 'calculating',f[0]
+            f[1]()
+        
+    def addfeat(self, features):
+        '''
+        Add an array of features with shape=(n_examples, n_features) to the self.features
+        array.
+        '''
+        if self.features == None:
+            self.features = features
+        else:
+            self.features = np.hstack( (self.features,features) )
     
+    def getshape(self):
+        '''
+        Returns the shape of the feature array.
+        '''
+        if self.features == None:
+            return (0,)
+        else:
+            return self.features.shape
+        
     ##################################################################
     ## FEATURES
     ##################################################################
@@ -251,8 +283,8 @@ class features:
             f=Dataset('../../data/train/dswrf_sfc_latlon_subset_19940101_20071231.nc','r')
         else:
             f=Dataset('../../data/test/dswrf_sfc_latlon_subset_20080101_20121130.nc','r')
-        features = self._integ(f)
-        self.features = np.hstack( (self.features,features) )
+        features = self.integ(f)
+        self.addfeat(features)
         
     def _IDSWFfY(self):
         '''
@@ -262,12 +294,12 @@ class features:
             f=Dataset('../../data/train/dswrf_sfc_latlon_subset_19940101_20071231.nc','r')
         else:
             f=Dataset('../../data/test/dswrf_sfc_latlon_subset_20080101_20121130.nc','r')
-        features = self._integ(f)
+        features = self.integ(f)
         newfeatures = np.empty_like(features)
         newfeatures[1:] = features[:-1]
         newfeatures[0] = features[0]
-        self.features = np.hstack( (self.features,newfeatures) )
-
+        self.addfeat(newfeatures)
+    
     def _IDSWFfT(self):
         '''
         Integrated Short-Wave Flux from Tomorrow
@@ -276,12 +308,12 @@ class features:
             f=Dataset('../../data/train/dswrf_sfc_latlon_subset_19940101_20071231.nc','r')
         else:
             f=Dataset('../../data/test/dswrf_sfc_latlon_subset_20080101_20121130.nc','r')
-        features = self._integ(f)
+        features = self.integ(f)
         newfeatures = np.empty_like(features)
         newfeatures[:-1] = features[1:]
         newfeatures[-1] = features[-1]
-        self.features = np.hstack( (self.features,newfeatures) )
-
+        self.addfeat(newfeatures)
+    
     def _IDLWF(self):
         '''
         Integrated Long-Wave Flux
@@ -290,8 +322,8 @@ class features:
             f=Dataset('../../data/train/dlwrf_sfc_latlon_subset_19940101_20071231.nc','r')
         else:
             f=Dataset('../../data/test/dlwrf_sfc_latlon_subset_20080101_20121130.nc','r')
-        features = self._integ(f)
-        self.features = np.hstack( (self.features,features) )
+        features = self.integ(f)
+        self.addfeat(features)
         
     def _IDLWFfY(self):
         '''
@@ -301,12 +333,12 @@ class features:
             f=Dataset('../../data/train/dlwrf_sfc_latlon_subset_19940101_20071231.nc','r')
         else:
             f=Dataset('../../data/test/dlwrf_sfc_latlon_subset_20080101_20121130.nc','r')
-        features = self._integ(f)
+        features = self.integ(f)
         newfeatures = np.empty_like(features)
         newfeatures[1:] = features[:-1]
         newfeatures[0] = features[0]
-        self.features = np.hstack( (self.features,newfeatures) )
-
+        self.addfeat(newfeatures)
+        
     def _IDLWFfT(self):
         '''
         Integrated Long-Wave Flux from Tomorrow
@@ -315,11 +347,11 @@ class features:
             f=Dataset('../../data/train/dlwrf_sfc_latlon_subset_19940101_20071231.nc','r')
         else:
             f=Dataset('../../data/test/dlwrf_sfc_latlon_subset_20080101_20121130.nc','r')
-        features = self._integ(f)
+        features = self.integ(f)
         newfeatures = np.empty_like(features)
         newfeatures[:-1] = features[1:]
         newfeatures[-1] = features[-1]
-        self.features = np.hstack( (self.features,newfeatures) )
+        self.addfeat(newfeatures)
     
     def _MCC(self):
         '''
@@ -333,7 +365,7 @@ class features:
         arr = np.mean(f.variables[var][:], axis=1)  # average over all models
         arr = np.mean(arr, axis=1)                  # average over all hours
         features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
-        self.features = np.hstack( (self.features,features) )
+        self.addfeat(features)
         
     def _MCCfY(self):
         '''
@@ -350,7 +382,7 @@ class features:
         newfeatures = np.empty_like(features)
         newfeatures[1:] = features[:-1]
         newfeatures[0] = features[0]
-        self.features = np.hstack( (self.features,newfeatures) )
+        self.addfeat(newfeatures)
     
     def _MCCfT(self):
         '''
@@ -367,8 +399,8 @@ class features:
         newfeatures = np.empty_like(features)
         newfeatures[:-1] = features[1:]
         newfeatures[-1] = features[-1]
-        self.features = np.hstack( (self.features,newfeatures) )
-
+        self.addfeat(newfeatures)
+    
     def _AP(self):
         '''
         Accumulated Precipitation
@@ -381,8 +413,8 @@ class features:
         arr = np.mean(f.variables[var][:], axis=1)  # average over all models
         arr = np.sum(arr, axis=1)                   # sum over all hours
         features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
-        self.features = np.hstack( (self.features,features) )
-
+        self.addfeat(features)
+    
     def _APfY(self):
         '''
         Accumulated Precipitation from Yesterday
@@ -398,7 +430,7 @@ class features:
         newfeatures = np.empty_like(features)
         newfeatures[1:] = features[:-1]
         newfeatures[0] = features[0]
-        self.features = np.hstack( (self.features,newfeatures) )
+        self.addfeat(newfeatures)
     
     def _APfT(self):
         '''
@@ -415,7 +447,7 @@ class features:
         newfeatures = np.empty_like(features)
         newfeatures[:-1] = features[1:]
         newfeatures[-1] = features[-1]
-        self.features = np.hstack( (self.features,newfeatures) )
+        self.addfeat(newfeatures)
     
     def _MT(self):
         '''
@@ -429,7 +461,7 @@ class features:
         arr = np.max(f.variables[var][:], axis=2) # take the max value on the hours axis
         arr = np.mean(arr, axis=1)                # average over all models
         features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
-        self.features = np.hstack( (self.features,features) )
+        self.addfeat(features)
     
     def _MTfY(self):
         '''
@@ -446,8 +478,8 @@ class features:
         newfeatures = np.empty_like(features)
         newfeatures[1:] = features[:-1]
         newfeatures[0] = features[0]
-        self.features = np.hstack( (self.features,newfeatures) )
-
+        self.addfeat(newfeatures)
+    
     def _MTfT(self):
         '''
         Max Temperature from Tomorrow
@@ -463,11 +495,55 @@ class features:
         newfeatures = np.empty_like(features)
         newfeatures[:-1] = features[1:]
         newfeatures[-1] = features[-1]
-        self.features = np.hstack( (self.features,newfeatures) )
+        self.addfeat(newfeatures)
+        
+    def _AP(self):
+        '''
+        Air Pressure
+        '''
+        if self.which == 'train':
+            f=Dataset('../../data/train/pres_msl_latlon_subset_19940101_20071231.nc','r')
+        else:
+            f=Dataset('../../data/test/pres_msl_latlon_subset_20080101_20121130.nc','r')
+        var = f.variables.keys()[-1]
+        arr = np.mean(f.variables[var][:], axis=1)  # average over all models
+        arr = np.mean(arr, axis=1)                  # average over all hours
+        features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
+        self.addfeat(features)
+
+    def _APfY(self):
+        '''
+        Air Pressure from Yesterday
+        '''
+        if self.which == 'train':
+            f=Dataset('../../data/train/pres_msl_latlon_subset_19940101_20071231.nc','r')
+        else:
+            f=Dataset('../../data/test/pres_msl_latlon_subset_20080101_20121130.nc','r')
+        var = f.variables.keys()[-1]
+        arr = np.mean(f.variables[var][:], axis=1)  # average over all models
+        arr = np.mean(arr, axis=1)                  # average over all hours
+        features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
+        newfeatures = np.empty_like(features)
+        newfeatures[1:] = features[:-1]
+        newfeatures[0] = features[0]
+        self.addfeat(newfeatures)
+
+    def _APfT(self):
+        '''
+        Air Pressure from Tomorrow
+        '''
+        if self.which == 'train':
+            f=Dataset('../../data/train/pres_msl_latlon_subset_19940101_20071231.nc','r')
+        else:
+            f=Dataset('../../data/test/pres_msl_latlon_subset_20080101_20121130.nc','r')
+        var = f.variables.keys()[-1]
+        arr = np.mean(f.variables[var][:], axis=1)  # average over all models
+        arr = np.mean(arr, axis=1)                  # average over all hours
+        features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
+        newfeatures = np.empty_like(features)
+        newfeatures[:-1] = features[1:]
+        newfeatures[-1] = features[-1]
+        self.addfeat(newfeatures)
 
 
-
-        
-        
-        
         
