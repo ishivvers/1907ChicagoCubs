@@ -224,13 +224,14 @@ class features:
         '''
         Save a pickled representation of this feature set.
         '''
-        pickle.dump( open(fname,'w'), self.features )
+        if self.verbose: print 'saving to file'
+        pickle.dump( (self.features, self.featnames), open(fname,'w') )
     
     def load(self, fname):
         '''
         Load the features from a pickle file.
         '''
-        self.features = pickle.load( open(fname,'r') )
+        self.features, self.featnames = pickle.load( open(fname,'r') )
     
     def integ(self, f):
         '''

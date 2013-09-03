@@ -42,10 +42,7 @@
 ---------------------------------------
 ### sketch ###
 
-- interpolate all GEFS variables to the MESONET locations
-- feed into a machine-learning algorithm
-- figure out what are the best features to use
-- [scipy.interpolate](http://docs.scipy.org/doc/scipy/reference/generated/scipy.interpolate.interp2d.html)
+- We should chat about strategies, and start submitting models this week.
 
 
 ---------------------------------------
@@ -53,6 +50,5 @@
 
 - clone the GitHub repo
  - develop on your local computer in your folder, then pull/push to GitHub (so others can see the code)
-- feature brainstorm
-- figure out how best to average data, interpolate, etc.
+ - science
 
