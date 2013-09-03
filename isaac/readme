@@ -12,8 +12,11 @@
 ## to do: ##
 
 - Feature exploration 
+- better to normalize/recenter/etc?
 - time-based?
   - averaged over last few hours, plus over day, plus derivatives?
    - For now, just doing daily averages of today, yesterday, tomorrow; Assuming that change is happening on day+ timescales
  - different directions? I.E. East, North, West, South local averages. (maybe 2 distances) ((I think this is already covered by using all GEFs points.)
- - 
+- Run feature selection on a randomized subset of data
+- Run a SVM on selected features
+- Run a gridsearch for SVM parameters on a randomized subset of data

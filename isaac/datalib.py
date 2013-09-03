@@ -13,6 +13,7 @@ import csv
 import pickle
 import inspect
 from sklearn import metrics
+from sklearn.preprocessing import StandardScaler
 
 VARIABLE_NAMES = ['apcp_sfc','dlwrf_sfc','dswrf_sfc','pres_msl','pwat_eatm','spfh_2m','tcdc_eatm',
                   'tcolc_eatm','tmax_2m','tmin_2m','tmp_2m','tmp_sfc','ulwrf_sfc','ulwrf_tatm','uswrf_sfc']
@@ -208,8 +209,9 @@ class features:
     '''
     A class to handle all feature generation crap for the AMS Solar Energy Project.
     '''
-    def __init__( self, which='train', verbose=False ):
+    def __init__( self, which='train', verbose=False, gefsmask=None ):
         self.features = None
+        self.gefsmask = gefsmask
         self.featnames = []
         self.which = which
         if self.which not in ['test','train']:
@@ -245,7 +247,7 @@ class features:
         features = i_arr.reshape( i_arr.shape[0], i_arr.shape[1]*i_arr.shape[2] )
         return features                            # return the array with shape=(n_timesteps, n_features)
     
-    def calc_all_features(self):
+    def calc_all_features(self, scale=True):
         '''
         Use the inspect module to calculate all features. Automatically
         runs all features defined with an underscore at the front of the name.
@@ -254,18 +256,35 @@ class features:
         for f in feat_funcs:
             if self.verbose: print 'calculating',f[0]
             f[1]()
+        if scale:
+            if self.verbose: print 'rescaling all input data'
+            scl = StandardScaler()
+            self.features = scl.fit_transform(self.features)
+            
         
     def addfeat(self, features, name):
         '''
         Add an array of features with shape=(n_examples, n_features) to the self.features
         array.
+        Uses the self.gefsmask array (must be a numpy boolean array) to use only features
+        from certain GEFS stations.
         '''
-        if self.features == None:
-            self.features = features
+        if self.gefsmask == None:
+            if self.features == None:
+                self.features = features
+            else:
+                self.features = np.hstack( (self.features,features) )
+            for i in range(features.shape[1]):
+                self.featnames.append(name+' '+str(i))
         else:
-            self.features = np.hstack( (self.features,features) )
-        for i in range(features.shape[1]):
-            self.featnames.append(name+' '+str(i))
+            if self.features == None:
+                self.features = features[gefsmask]
+            else:
+                self.features = np.hstack( (self.features,features[gefsmask]) )
+            for i in range(features.shape[1]):
+                if self.gefsmask[i]:
+                    self.featnames.append(name+' '+str(i))
+            
     
     def getshape(self):
         '''

@@ -128,17 +128,23 @@ def RunRidgeCVParallel( trainX, trainY, testX, alphas, verbose=True, save=True, 
     return model, predictions
 
 
-def RunLassoFeatureElimination( trainX, trainY, alpha=500.0, verbose=True ):
+def RunLassoFeatureElimination( trainX, trainY, verbose=True ):
     '''
     Use a Lasso fit to figure out what features are important.
     '''
-    if verbose: print '\nHere we go\n','#'*20,'\n'
-    model = linear_model.Lasso(normalize=True)
-    rfe = feature_selection.RFECV( model, step=0.05, estimator_params={'alpha':alpha}, verbose=verbose )
+    if verbose: print '\nChoosing an alpha parameter\n','#'*20,'\n'
+    model = linear_model.LassoCV(verbose=verbose)
+    model.fit( trainX, trainY )
+    best_alpha = model.alpha_
+    if verbose: print '\nUsing alpha=',best_alpha
+    if verbose: print 'Searching for best feature set\n'
+    
+    model = linear_model.Lasso(alpha=best_alpha)
+    rfe = feature_selection.RFECV( model, step=0.1, verbose=verbose )
     rfe.fit( trainX, trainY )
     
     if verbose: print 'Found reduced feature set'
-    return ref.ranking_
+    return rfe.ranking_
 
     
     
@@ -212,13 +218,20 @@ def SimpleInterpolatedFlux(f=Dataset('../../data/train/dswrf_sfc_latlon_subset_1
 
 ######################################################
 # Run a Lasso to pick features and reduce the feature set, using
-# all of the data.
+# a random subset of the data examples (10%)
 ######################################################
 F = features( which='train', verbose=True )
 F.calc_all_features()
 trainX = F.features
 times, trainY = load_MESONET('train.csv')
-feat_ranking = RunLassoFeatureElimination( trainX, trainY )
+# build a numpy mask with 10% ones and 90% zeros
+mask = []
+for i in range(trainY.shape[0]):
+    v = np.random.random()
+    if v<=0.1: mask.append(1)
+    else: mask.append(0)
+mask = np.array(mask, dtype='bool')
+feat_ranking = RunLassoFeatureElimination( trainX[mask], trainY[mask] )
 feat_names = np.array( F.featnames )
 good_features = feat_names[ feat_ranking == 1 ]
 print 'good features:',good_features
