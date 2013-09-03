@@ -4,7 +4,7 @@ A library of models and model helper functions for the
 '''
 
 from datalib import *
-from sklearn import linear_model, grid_search
+from sklearn import linear_model, grid_search, feature_selection
 import multiprocessing as mp
 
 
@@ -40,6 +40,24 @@ def RunLassoCV( trainX, trainY, testX, verbose=True, save=True ):
     if verbose: print '\nComplete.'
     
     return model
+    
+
+def RunElasticNetCV( trainX, trainY, testX, verbose=True, save=True, n_jobs=int(.75*mp.cpu_count()) ):
+    # use the built-in cross-validation routine to 
+    #  figure out the best alpha and rho parameters (alpha determines
+    #  how sparse the coefficients are).
+    if verbose: print '\nChoosing best parameters and fitting model','#'*20,'\n'
+    model = linear_model.ElasticNetCV(normalize=True, verbose=verbose, l1_ratio=[.1, .5, .7, .9, .95, .99, 1], n_jobs=n_jobs)
+    model.fit( trainX, trainY )
+
+    # now produce the output estimates
+    if verbose: print '\nProducing estimates','#'*20,'\n'
+    predictions = model.predict( testX )
+    if save: save_submission( predictions, 'ElasticNetCV_submission.csv' )
+
+    if verbose: print '\nComplete.'
+
+    return model
 
 '''
 trainX = load_GEFS('train', variables=['dlwrf_sfc','dswrf_sfc','tmp_2m'])
@@ -53,7 +71,7 @@ plt.xlabel('feature')
 plt.ylabel('model')
 plt.show()
 '''
-def RunLassoCVParallel( trainX, trainY, testX, alphas, verbose=True, save=True, n_jobs=int(.75*mp.cpu_count()) ):
+def RunLassoCVGridSearch( trainX, trainY, testX, alphas, verbose=True, save=True, n_jobs=int(.75*mp.cpu_count()) ):
     '''
     Run a || grid search for optimal alpha parameter in a Lasso model.
     '''
@@ -72,7 +90,7 @@ def RunLassoCVParallel( trainX, trainY, testX, alphas, verbose=True, save=True, 
     return model, predictions
 
     
-def RunElasticNetCVParallel( trainX, trainY, testX, params, verbose=True, save=True, n_jobs=int(.75*mp.cpu_count()) ):
+def RunElasticNetCVGridSearch( trainX, trainY, testX, params, verbose=True, save=True, n_jobs=int(.75*mp.cpu_count()) ):
     '''
     Run a || grid search for optimal parameters in an Elastic Net model.
     '''
@@ -89,6 +107,40 @@ def RunElasticNetCVParallel( trainX, trainY, testX, params, verbose=True, save=T
     if verbose: print '\nComplete.'
 
     return model, predictions
+
+
+def RunRidgeCVParallel( trainX, trainY, testX, alphas, verbose=True, save=True, n_jobs=int(.75*mp.cpu_count()) ):
+    '''
+    Run a || grid search for optimal parameters in Ridge Regression model.
+    '''
+    if verbose: print '\nChoosing best parameters and fitting model','#'*20,'\n'
+    model = linear_model.Ridge(normalize=True)
+    cvs = grid_search.GridSearchCV(model, {'alpha':alphas}, n_jobs=n_jobs, verbose=int(verbose))
+    cvs.fit( trainX, trainY )
+    model = cvs.best_estimator_
+
+    if verbose: print '\nProducing estimates','#'*20,'\n'
+    predictions = model.predict( testX )
+    if save: save_submission( predictions, 'RidgeCV_submission.csv' )
+
+    if verbose: print '\nComplete.'
+
+    return model, predictions
+
+
+def RunLassoFeatureElimination( trainX, trainY, alpha=500.0, verbose=True ):
+    '''
+    Use a Lasso fit to figure out what features are important.
+    '''
+    if verbose: print '\nHere we go\n','#'*20,'\n'
+    model = linear_model.Lasso(normalize=True)
+    rfe = feature_selection.RFECV( model, step=0.05, estimator_params={'alpha':alpha}, verbose=verbose )
+    rfe.fit( trainX, trainY )
+    
+    if verbose: print 'Found reduced feature set'
+    return ref.ranking_
+
+    
     
 def SimpleInterpolatedFlux(f=Dataset('../../data/train/dswrf_sfc_latlon_subset_19940101_20071231.nc','r')):
     '''
@@ -140,18 +192,36 @@ def SimpleInterpolatedFlux(f=Dataset('../../data/train/dswrf_sfc_latlon_subset_1
 
 
 
+# 
+# ######################################################
+# # Run an ElasticNet model on the calculated features of our data,
+# # witholding part as a 'test' set.
+# # Grid search for optimal parameters using the || gridsearch
+# # function.  Takes ~300 minutes on Sirius.
+# ######################################################
+# F = features( which='train', verbose=True )
+# F.calc_all_features()
+# times, all_Y = load_MESONET('train.csv')
+# trainX, trainY, testX, testY = split_train( F.features, all_Y )
+# params = {'alpha':np.logspace(0,3,25), 'l1_ratio':np.linspace(0,1,10)}
+# model, predictions = RunElasticNetCVParallel( trainX, trainY, testX, params )
+# print 'Best model parameters:', model.get_params()
+# print 'Best model MAE:', MAE( testY, predictions )
+# # appears to have chosen alpha=1000, l1_ratio=1.0, with MAE=2.3M
+
 
 ######################################################
-# Run an ElasticNet model on the calculated features of our data,
-# witholding part as a 'test' set.
-# Grid search for optimal parameters using the || gridsearch
-# function.
+# Run a Lasso to pick features and reduce the feature set, using
+# all of the data.
 ######################################################
 F = features( which='train', verbose=True )
 F.calc_all_features()
-times, all_Y = load_MESONET('train.csv')
-trainX, trainY, testX, testY = split_train( F.features, all_Y )
-params = {'alpha':np.logspace(0,3,25), 'l1_ratio':np.linspace(0,1,10)}
-model, predictions = RunElasticNetCVParallel( trainX, trainY, testX, params )
-print 'Best model parameters:', model.get_params()
-print 'Best model MAE:', MAE( testY, predictions )
+trainX = F.features
+times, trainY = load_MESONET('train.csv')
+feat_ranking = RunLassoFeatureElimination( trainX, trainY )
+feat_names = np.array( F.featnames )
+good_features = feat_names[ feat_ranking == 1 ]
+print 'good features:',good_features
+
+
+

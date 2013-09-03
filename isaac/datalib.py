@@ -210,6 +210,7 @@ class features:
     '''
     def __init__( self, which='train', verbose=False ):
         self.features = None
+        self.featnames = []
         self.which = which
         if self.which not in ['test','train']:
             raise Exception('which must be either test or train')
@@ -253,7 +254,7 @@ class features:
             if self.verbose: print 'calculating',f[0]
             f[1]()
         
-    def addfeat(self, features):
+    def addfeat(self, features, name):
         '''
         Add an array of features with shape=(n_examples, n_features) to the self.features
         array.
@@ -262,6 +263,8 @@ class features:
             self.features = features
         else:
             self.features = np.hstack( (self.features,features) )
+        for i in range(features.shape[1]):
+            self.featnames.append(name+' '+str(i))
     
     def getshape(self):
         '''
@@ -284,7 +287,7 @@ class features:
         else:
             f=Dataset('../../data/test/dswrf_sfc_latlon_subset_20080101_20121130.nc','r')
         features = self.integ(f)
-        self.addfeat(features)
+        self.addfeat(features, 'Int. SW Flux')
         
     def _IDSWFfY(self):
         '''
@@ -298,7 +301,7 @@ class features:
         newfeatures = np.empty_like(features)
         newfeatures[1:] = features[:-1]
         newfeatures[0] = features[0]
-        self.addfeat(newfeatures)
+        self.addfeat(newfeatures, 'Int. SW Flux from Yesterday')
     
     def _IDSWFfT(self):
         '''
@@ -312,7 +315,7 @@ class features:
         newfeatures = np.empty_like(features)
         newfeatures[:-1] = features[1:]
         newfeatures[-1] = features[-1]
-        self.addfeat(newfeatures)
+        self.addfeat(newfeatures, 'Int. SW Flux from Tomorrow')
     
     def _IDLWF(self):
         '''
@@ -323,7 +326,7 @@ class features:
         else:
             f=Dataset('../../data/test/dlwrf_sfc_latlon_subset_20080101_20121130.nc','r')
         features = self.integ(f)
-        self.addfeat(features)
+        self.addfeat(features, 'Int. LW Flux')
         
     def _IDLWFfY(self):
         '''
@@ -337,7 +340,7 @@ class features:
         newfeatures = np.empty_like(features)
         newfeatures[1:] = features[:-1]
         newfeatures[0] = features[0]
-        self.addfeat(newfeatures)
+        self.addfeat(newfeatures, 'Int. LW Flux from Yesterday')
         
     def _IDLWFfT(self):
         '''
@@ -351,7 +354,7 @@ class features:
         newfeatures = np.empty_like(features)
         newfeatures[:-1] = features[1:]
         newfeatures[-1] = features[-1]
-        self.addfeat(newfeatures)
+        self.addfeat(newfeatures, 'Int. LW Flux from Tomorrow')
     
     def _MCC(self):
         '''
@@ -365,7 +368,7 @@ class features:
         arr = np.mean(f.variables[var][:], axis=1)  # average over all models
         arr = np.mean(arr, axis=1)                  # average over all hours
         features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
-        self.addfeat(features)
+        self.addfeat(features, 'Mean Cloud Cover')
         
     def _MCCfY(self):
         '''
@@ -382,7 +385,7 @@ class features:
         newfeatures = np.empty_like(features)
         newfeatures[1:] = features[:-1]
         newfeatures[0] = features[0]
-        self.addfeat(newfeatures)
+        self.addfeat(newfeatures, 'Mean Cloud Cover from Yesterday')
     
     def _MCCfT(self):
         '''
@@ -399,7 +402,7 @@ class features:
         newfeatures = np.empty_like(features)
         newfeatures[:-1] = features[1:]
         newfeatures[-1] = features[-1]
-        self.addfeat(newfeatures)
+        self.addfeat(newfeatures, 'Mean Cloud Cover from Tomorrow')
     
     def _AP(self):
         '''
@@ -413,7 +416,7 @@ class features:
         arr = np.mean(f.variables[var][:], axis=1)  # average over all models
         arr = np.sum(arr, axis=1)                   # sum over all hours
         features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
-        self.addfeat(features)
+        self.addfeat(features, 'Acc. Rain')
     
     def _APfY(self):
         '''
@@ -430,7 +433,7 @@ class features:
         newfeatures = np.empty_like(features)
         newfeatures[1:] = features[:-1]
         newfeatures[0] = features[0]
-        self.addfeat(newfeatures)
+        self.addfeat(newfeatures, 'Acc. Rain from Yesterday')
     
     def _APfT(self):
         '''
@@ -447,7 +450,7 @@ class features:
         newfeatures = np.empty_like(features)
         newfeatures[:-1] = features[1:]
         newfeatures[-1] = features[-1]
-        self.addfeat(newfeatures)
+        self.addfeat(newfeatures, 'Acc. Rain from Tomorrow')
     
     def _MT(self):
         '''
@@ -461,7 +464,7 @@ class features:
         arr = np.max(f.variables[var][:], axis=2) # take the max value on the hours axis
         arr = np.mean(arr, axis=1)                # average over all models
         features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
-        self.addfeat(features)
+        self.addfeat(features, 'Max Temp.')
     
     def _MTfY(self):
         '''
@@ -478,7 +481,7 @@ class features:
         newfeatures = np.empty_like(features)
         newfeatures[1:] = features[:-1]
         newfeatures[0] = features[0]
-        self.addfeat(newfeatures)
+        self.addfeat(newfeatures, 'Max Temp. from Yesterday')
     
     def _MTfT(self):
         '''
@@ -495,7 +498,7 @@ class features:
         newfeatures = np.empty_like(features)
         newfeatures[:-1] = features[1:]
         newfeatures[-1] = features[-1]
-        self.addfeat(newfeatures)
+        self.addfeat(newfeatures, 'Max Temp. from Tomorrow')
         
     def _AP(self):
         '''
@@ -509,7 +512,7 @@ class features:
         arr = np.mean(f.variables[var][:], axis=1)  # average over all models
         arr = np.mean(arr, axis=1)                  # average over all hours
         features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
-        self.addfeat(features)
+        self.addfeat(features, 'Daily Mean Air Pressure')
 
     def _APfY(self):
         '''
@@ -526,7 +529,7 @@ class features:
         newfeatures = np.empty_like(features)
         newfeatures[1:] = features[:-1]
         newfeatures[0] = features[0]
-        self.addfeat(newfeatures)
+        self.addfeat(newfeatures, 'Daily Mean Air Pressure from Yesterday')
 
     def _APfT(self):
         '''
@@ -543,7 +546,7 @@ class features:
         newfeatures = np.empty_like(features)
         newfeatures[:-1] = features[1:]
         newfeatures[-1] = features[-1]
-        self.addfeat(newfeatures)
+        self.addfeat(newfeatures, 'Daily Mean Air Pressure from Tomorrow')
 
 
         
