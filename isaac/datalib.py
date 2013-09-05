@@ -299,7 +299,7 @@ class features:
         else:
             return self.features.shape
     
-    def calc_features_near( n_mesonet, n=8, scale=True ):
+    def calc_features_near(self, n_mesonet, n=8, scale=True):
         '''
         Calculate the features for the <n> GEFs gridpoints nearest the <n_mesonet> station.
         Automatically runs all features defined with an underscore at the front of the name.
@@ -314,14 +314,14 @@ class features:
         for f in feat_funcs:
             if self.verbose: print 'calculating',f[0]
             feats, name = f[1]()
-            self.addfeat( feats[indices_wanted], name )
+            self.addfeat( feats[:,indices_wanted], name )
         if scale:
             if self.verbose: print 'rescaling all input data'
             scl = StandardScaler()
             self.features = scl.fit_transform(self.features)
             self.scaler = scl
     
-    def calc_interpolated_feats( n_mesonet, scale=True ):
+    def calc_interpolated_feats(self, n_mesonet, scale=True):
         '''
         Calculate the GEFs features interpolated to the <n_mesonet> station.
         Automatically runs all features defined with an underscore at the front of the name.
@@ -334,7 +334,7 @@ class features:
             if self.verbose: print 'calculating and interpolating',f[0]
             feats, name = f[1]()
             for day in range(feats.shape[0]):
-                F = interp2d(self.GEFSlat, self.GEFSlon, feats[day], kind='linear', bounds_error=True)
+                F = interp2d(self.GEFslat, self.GEFslon, feats[day], kind='linear', bounds_error=True)
                 self.features[day, n_feat] = F( lat, lon )
         if scale:
             if self.verbose: print 'rescaling all input data'
@@ -634,4 +634,19 @@ class features:
     #     f.close()
     #     return newfeatures, 'Daily Mean Air Pressure from Tomorrow'
 
+    def _dAP(self):
+        '''
+        Max 3hr Change in Air Pressure
+        '''
+        if self.which == 'train':
+            f=Dataset('../../data/train/pres_msl_latlon_subset_19940101_20071231.nc','r')
+        else:
+            f=Dataset('../../data/test/pres_msl_latlon_subset_20080101_20121130.nc','r')
+        var = f.variables.keys()[-1]
+        arr = np.mean(f.variables[var][:], axis=1)  # average over all models
+        arr = arr[:,1:,:,:] - arr[:,:-1,:,:]        # find the differences over the hours axis
+        arr = np.max( arr, axis=1 )                 # find the max over the hours axis
+        features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
+        f.close()
+        return features, 'Max Change in Air Pressure'
         

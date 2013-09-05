@@ -11,15 +11,13 @@
 ------------------------------------------------
 ## to do: ##
 
-- Feature exploration
-- time-based?
-  - averaged over last few hours, plus over day, plus derivatives?
-   - For now, just doing daily averages of today, yesterday, tomorrow; Assuming that change is happening on day+ timescales
- - different directions? I.E. East, North, West, South local averages. (maybe 2 distances)
-  - Could have each sample at each point be a bit of data about it, and look for a model for all points
-   - I think there are some points that are relatively shitty, this works less well for those, but could
-     still be worth submitting as a trial
-   - I also think that including (most of) the GEFs grid is helpful because some stations may be more correlated
-     with each other because of Altitude or other topographic reasons, rather than absolute location.
-- Run a SVM on selected features
-- Run a gridsearch for SVM parameters on a randomized subset of data
+- I think the best solution is to use the features I have here and go for it
+ - use some number of nearest GEFs points for each mesonet location
+ - build a model for each mesonet site (easy parallel-wise)
+  - run a 5-fold CV search for best parameters on random 10% of the train data
+  - use those parameters to fit a model to all of the data
+  - use that model to predict the output
+  - repeat for N different model types
+- need to:
+ - write functions that take in a trainX, trainY, testY and return a predictY for each model type
+ - write a parallel wrapper that takes each of those and applies them to all 98 mesonet sites
