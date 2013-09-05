@@ -209,15 +209,26 @@ class features:
     '''
     A class to handle all feature generation crap for the AMS Solar Energy Project.
     '''
-    def __init__( self, which='train', verbose=False, gefsmask=None ):
+    def __init__( self, which='train', verbose=False ):
         self.features = None
-        self.gefsmask = gefsmask
+        self.scaler = None
         self.featnames = []
         self.which = which
         if self.which not in ['test','train']:
             raise Exception('which must be either test or train')
         self.verbose = verbose
-        #self.mesonet_locs = np.recfromcsv('../../data/station_info.csv')  # needed only for interpolated features
+        self.mesonet_locs = np.recfromcsv('../../data/station_info.csv')  # needed only for interpolated features
+        
+        # get arrays of lat & lon which correspond to the GEFs point locations
+        if self.which == 'train':
+            f=Dataset('../../data/train/dswrf_sfc_latlon_subset_19940101_20071231.nc','r')
+        else:
+            f=Dataset('../../data/test/dswrf_sfc_latlon_subset_20080101_20121130.nc','r')
+        X,Y = np.meshgrid(f.variables['lon'][:], f.variables['lat'][:])
+        self.GEFslat = Y.reshape( 9*16 )
+        self.GEFslon = X.reshape( 9*16 ) - 360
+        self.n_samples = f.variables['time'].shape[0]
+        f.close()
     
     ##################################################################
     ## HELPER FUNCTIONS
@@ -226,14 +237,17 @@ class features:
         '''
         Save a pickled representation of this feature set.
         '''
-        if self.verbose: print 'saving to file'
-        pickle.dump( (self.features, self.featnames), open(fname,'w') )
+        if self.verbose: print 'saving to file:', fname
+        pickle.dump( self, open(fname,'w') )
     
     def load(self, fname):
         '''
-        Load the features from a pickle file.
+        Load the feature set from a pickle file.
         '''
-        self.features, self.featnames = pickle.load( open(fname,'r') )
+        if self.verbose: print 'importing from file:', fname
+        other = pickle.load( open(fname,'r') )
+        self.features, self.scaler, self.featnames, self.which, self.verbose, self.mesonet_locs = \
+            other.features, other.scaler, other.featnames, other.which, other.verbose, other.mesonet_locs
     
     def integ(self, f):
         '''
@@ -255,13 +269,13 @@ class features:
         feat_funcs = [f for f in inspect.getmembers(self) if  (f[0][0]=='_' and f[0][1]!='_' and inspect.ismethod(f[1]))]
         for f in feat_funcs:
             if self.verbose: print 'calculating',f[0]
-            f[1]()
+            self.addfeat( f[1]() )
         if scale:
             if self.verbose: print 'rescaling all input data'
             scl = StandardScaler()
             self.features = scl.fit_transform(self.features)
+            self.scaler = scl
             
-        
     def addfeat(self, features, name):
         '''
         Add an array of features with shape=(n_examples, n_features) to the self.features
@@ -269,22 +283,12 @@ class features:
         Uses the self.gefsmask array (must be a numpy boolean array) to use only features
         from certain GEFS stations.
         '''
-        if self.gefsmask == None:
-            if self.features == None:
-                self.features = features
-            else:
-                self.features = np.hstack( (self.features,features) )
-            for i in range(features.shape[1]):
-                self.featnames.append(name+' '+str(i))
+        if self.features == None:
+            self.features = features
         else:
-            if self.features == None:
-                self.features = features[gefsmask]
-            else:
-                self.features = np.hstack( (self.features,features[gefsmask]) )
-            for i in range(features.shape[1]):
-                if self.gefsmask[i]:
-                    self.featnames.append(name+' '+str(i))
-            
+            self.features = np.hstack( (self.features,features) )
+        for i in range(features.shape[1]):
+            self.featnames.append(name+' '+str(i))
     
     def getshape(self):
         '''
@@ -294,7 +298,50 @@ class features:
             return (0,)
         else:
             return self.features.shape
+    
+    def calc_features_near( n_mesonet, n=8, scale=True ):
+        '''
+        Calculate the features for the <n> GEFs gridpoints nearest the <n_mesonet> station.
+        Automatically runs all features defined with an underscore at the front of the name.
+        '''
+        lat,lon = self.mesonet_locs[n_mesonet][1], self.mesonet_locs[n_mesonet][2]
+        sqdists = (self.GEFslat - lat)**2 + (self.GEFslon - lon)**2
+        sort_sqdists = zip( sqdists, np.arange(len(sqdists)) )
+        sort_sqdists.sort()
+        indices_wanted = np.array([r[1] for r in sort_sqdists[:n]])
         
+        feat_funcs = [f for f in inspect.getmembers(self) if  (f[0][0]=='_' and f[0][1]!='_' and inspect.ismethod(f[1]))]
+        for f in feat_funcs:
+            if self.verbose: print 'calculating',f[0]
+            feats, name = f[1]()
+            self.addfeat( feats[indices_wanted], name )
+        if scale:
+            if self.verbose: print 'rescaling all input data'
+            scl = StandardScaler()
+            self.features = scl.fit_transform(self.features)
+            self.scaler = scl
+    
+    def calc_interpolated_feats( n_mesonet, scale=True ):
+        '''
+        Calculate the GEFs features interpolated to the <n_mesonet> station.
+        Automatically runs all features defined with an underscore at the front of the name.
+        '''
+        lat,lon = self.mesonet_locs[n_mesonet][1], self.mesonet_locs[n_mesonet][2]
+        
+        feat_funcs = [f for f in inspect.getmembers(self) if  (f[0][0]=='_' and f[0][1]!='_' and inspect.ismethod(f[1]))]
+        self.features = np.empty( (self.n_samples, len(feat_funcs)) )
+        for n_feat,f in enumerate(feat_funcs):
+            if self.verbose: print 'calculating and interpolating',f[0]
+            feats, name = f[1]()
+            for day in range(feats.shape[0]):
+                F = interp2d(self.GEFSlat, self.GEFSlon, feats[day], kind='linear', bounds_error=True)
+                self.features[day, n_feat] = F( lat, lon )
+        if scale:
+            if self.verbose: print 'rescaling all input data'
+            scl = StandardScaler()
+            self.features = scl.fit_transform(self.features)
+            self.scaler = scl
+    
     ##################################################################
     ## FEATURES
     ##################################################################
@@ -307,7 +354,9 @@ class features:
         else:
             f=Dataset('../../data/test/dswrf_sfc_latlon_subset_20080101_20121130.nc','r')
         features = self.integ(f)
-        self.addfeat(features, 'Int. SW Flux')
+        f.close()
+        return features, 'Int. SW Flux'
+
         
     def _IDSWFfY(self):
         '''
@@ -321,7 +370,8 @@ class features:
         newfeatures = np.empty_like(features)
         newfeatures[1:] = features[:-1]
         newfeatures[0] = features[0]
-        self.addfeat(newfeatures, 'Int. SW Flux from Yesterday')
+        f.close()
+        return newfeatures, 'Int. SW Flux from Yesterday'
     
     def _IDSWFfT(self):
         '''
@@ -335,7 +385,8 @@ class features:
         newfeatures = np.empty_like(features)
         newfeatures[:-1] = features[1:]
         newfeatures[-1] = features[-1]
-        self.addfeat(newfeatures, 'Int. SW Flux from Tomorrow')
+        f.close()
+        return newfeatures, 'Int. SW Flux from Tomorrow'
     
     def _IDLWF(self):
         '''
@@ -346,7 +397,8 @@ class features:
         else:
             f=Dataset('../../data/test/dlwrf_sfc_latlon_subset_20080101_20121130.nc','r')
         features = self.integ(f)
-        self.addfeat(features, 'Int. LW Flux')
+        f.close()
+        return features, 'Int. LW Flux'
         
     def _IDLWFfY(self):
         '''
@@ -360,7 +412,8 @@ class features:
         newfeatures = np.empty_like(features)
         newfeatures[1:] = features[:-1]
         newfeatures[0] = features[0]
-        self.addfeat(newfeatures, 'Int. LW Flux from Yesterday')
+        f.close()
+        return newfeatures, 'Int. LW Flux from Yesterday'
         
     def _IDLWFfT(self):
         '''
@@ -374,103 +427,110 @@ class features:
         newfeatures = np.empty_like(features)
         newfeatures[:-1] = features[1:]
         newfeatures[-1] = features[-1]
-        self.addfeat(newfeatures, 'Int. LW Flux from Tomorrow')
+        f.close()
+        return newfeatures, 'Int. LW Flux from Tomorrow'
     
-    def _MCC(self):
-        '''
-        Mean Cloud Cover
-        '''
-        if self.which == 'train':
-            f=Dataset('../../data/train/tcdc_eatm_latlon_subset_19940101_20071231.nc','r')
-        else:
-            f=Dataset('../../data/test/tcdc_eatm_latlon_subset_20080101_20121130.nc','r')
-        var = f.variables.keys()[-1]
-        arr = np.mean(f.variables[var][:], axis=1)  # average over all models
-        arr = np.mean(arr, axis=1)                  # average over all hours
-        features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
-        self.addfeat(features, 'Mean Cloud Cover')
-        
-    def _MCCfY(self):
-        '''
-        Mean Cloud Cover from Yesterday
-        '''
-        if self.which == 'train':
-            f=Dataset('../../data/train/tcdc_eatm_latlon_subset_19940101_20071231.nc','r')
-        else:
-            f=Dataset('../../data/test/tcdc_eatm_latlon_subset_20080101_20121130.nc','r')
-        var = f.variables.keys()[-1]
-        arr = np.mean(f.variables[var][:], axis=1)  # average over all models
-        arr = np.mean(arr, axis=1)                  # average over all hours
-        features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
-        newfeatures = np.empty_like(features)
-        newfeatures[1:] = features[:-1]
-        newfeatures[0] = features[0]
-        self.addfeat(newfeatures, 'Mean Cloud Cover from Yesterday')
-    
-    def _MCCfT(self):
-        '''
-        Mean Cloud Cover from Tomorrow
-        '''
-        if self.which == 'train':
-            f=Dataset('../../data/train/tcdc_eatm_latlon_subset_19940101_20071231.nc','r')
-        else:
-            f=Dataset('../../data/test/tcdc_eatm_latlon_subset_20080101_20121130.nc','r')
-        var = f.variables.keys()[-1]
-        arr = np.mean(f.variables[var][:], axis=1)  # average over all models
-        arr = np.mean(arr, axis=1)                  # average over all hours
-        features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
-        newfeatures = np.empty_like(features)
-        newfeatures[:-1] = features[1:]
-        newfeatures[-1] = features[-1]
-        self.addfeat(newfeatures, 'Mean Cloud Cover from Tomorrow')
-    
-    def _AP(self):
-        '''
-        Accumulated Precipitation
-        '''
-        if self.which == 'train':
-            f=Dataset('../../data/train/tcdc_eatm_latlon_subset_19940101_20071231.nc','r')
-        else:
-            f=Dataset('../../data/test/tcdc_eatm_latlon_subset_20080101_20121130.nc','r')
-        var = f.variables.keys()[-1]
-        arr = np.mean(f.variables[var][:], axis=1)  # average over all models
-        arr = np.sum(arr, axis=1)                   # sum over all hours
-        features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
-        self.addfeat(features, 'Acc. Rain')
-    
-    def _APfY(self):
-        '''
-        Accumulated Precipitation from Yesterday
-        '''
-        if self.which == 'train':
-            f=Dataset('../../data/train/tcdc_eatm_latlon_subset_19940101_20071231.nc','r')
-        else:
-            f=Dataset('../../data/test/tcdc_eatm_latlon_subset_20080101_20121130.nc','r')
-        var = f.variables.keys()[-1]
-        arr = np.mean(f.variables[var][:], axis=1)  # average over all models
-        arr = np.sum(arr, axis=1)                   # sum over all hours
-        features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
-        newfeatures = np.empty_like(features)
-        newfeatures[1:] = features[:-1]
-        newfeatures[0] = features[0]
-        self.addfeat(newfeatures, 'Acc. Rain from Yesterday')
-    
-    def _APfT(self):
-        '''
-        Accumulated Precipitation from Tomorrow
-        '''
-        if self.which == 'train':
-            f=Dataset('../../data/train/tcdc_eatm_latlon_subset_19940101_20071231.nc','r')
-        else:
-            f=Dataset('../../data/test/tcdc_eatm_latlon_subset_20080101_20121130.nc','r')
-        var = f.variables.keys()[-1]
-        arr = np.mean(f.variables[var][:], axis=1)  # average over all models
-        arr = np.sum(arr, axis=1)                   # sum over all hours
-        features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
-        newfeatures = np.empty_like(features)
-        newfeatures[:-1] = features[1:]
-        newfeatures[-1] = features[-1]
-        self.addfeat(newfeatures, 'Acc. Rain from Tomorrow')
+    # def _MCC(self):
+    #     '''
+    #     Mean Cloud Cover
+    #     '''
+    #     if self.which == 'train':
+    #         f=Dataset('../../data/train/tcdc_eatm_latlon_subset_19940101_20071231.nc','r')
+    #     else:
+    #         f=Dataset('../../data/test/tcdc_eatm_latlon_subset_20080101_20121130.nc','r')
+    #     var = f.variables.keys()[-1]
+    #     arr = np.mean(f.variables[var][:], axis=1)  # average over all models
+    #     arr = np.mean(arr, axis=1)                  # average over all hours
+    #     features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
+    #     f.close()
+    #     return features, 'Mean Cloud Cover'
+    #     
+    # def _MCCfY(self):
+    #     '''
+    #     Mean Cloud Cover from Yesterday
+    #     '''
+    #     if self.which == 'train':
+    #         f=Dataset('../../data/train/tcdc_eatm_latlon_subset_19940101_20071231.nc','r')
+    #     else:
+    #         f=Dataset('../../data/test/tcdc_eatm_latlon_subset_20080101_20121130.nc','r')
+    #     var = f.variables.keys()[-1]
+    #     arr = np.mean(f.variables[var][:], axis=1)  # average over all models
+    #     arr = np.mean(arr, axis=1)                  # average over all hours
+    #     features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
+    #     newfeatures = np.empty_like(features)
+    #     newfeatures[1:] = features[:-1]
+    #     newfeatures[0] = features[0]
+    #     f.close()
+    #     return newfeatures, 'Mean Cloud Cover from Yesterday'
+    # 
+    # def _MCCfT(self):
+    #     '''
+    #     Mean Cloud Cover from Tomorrow
+    #     '''
+    #     if self.which == 'train':
+    #         f=Dataset('../../data/train/tcdc_eatm_latlon_subset_19940101_20071231.nc','r')
+    #     else:
+    #         f=Dataset('../../data/test/tcdc_eatm_latlon_subset_20080101_20121130.nc','r')
+    #     var = f.variables.keys()[-1]
+    #     arr = np.mean(f.variables[var][:], axis=1)  # average over all models
+    #     arr = np.mean(arr, axis=1)                  # average over all hours
+    #     features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
+    #     newfeatures = np.empty_like(features)
+    #     newfeatures[:-1] = features[1:]
+    #     newfeatures[-1] = features[-1]
+    #     f.close()
+    #     return newfeatures, 'Mean Cloud Cover from Tomorrow'
+    # 
+    # def _AP(self):
+    #     '''
+    #     Accumulated Precipitation
+    #     '''
+    #     if self.which == 'train':
+    #         f=Dataset('../../data/train/tcdc_eatm_latlon_subset_19940101_20071231.nc','r')
+    #     else:
+    #         f=Dataset('../../data/test/tcdc_eatm_latlon_subset_20080101_20121130.nc','r')
+    #     var = f.variables.keys()[-1]
+    #     arr = np.mean(f.variables[var][:], axis=1)  # average over all models
+    #     arr = np.sum(arr, axis=1)                   # sum over all hours
+    #     features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
+    #     f.close()
+    #     return features, 'Acc. Rain'
+    # 
+    # def _APfY(self):
+    #     '''
+    #     Accumulated Precipitation from Yesterday
+    #     '''
+    #     if self.which == 'train':
+    #         f=Dataset('../../data/train/tcdc_eatm_latlon_subset_19940101_20071231.nc','r')
+    #     else:
+    #         f=Dataset('../../data/test/tcdc_eatm_latlon_subset_20080101_20121130.nc','r')
+    #     var = f.variables.keys()[-1]
+    #     arr = np.mean(f.variables[var][:], axis=1)  # average over all models
+    #     arr = np.sum(arr, axis=1)                   # sum over all hours
+    #     features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
+    #     newfeatures = np.empty_like(features)
+    #     newfeatures[1:] = features[:-1]
+    #     newfeatures[0] = features[0]
+    #     f.close()
+    #     return newfeatures, 'Acc. Rain from Yesterday'
+    # 
+    # def _APfT(self):
+    #     '''
+    #     Accumulated Precipitation from Tomorrow
+    #     '''
+    #     if self.which == 'train':
+    #         f=Dataset('../../data/train/tcdc_eatm_latlon_subset_19940101_20071231.nc','r')
+    #     else:
+    #         f=Dataset('../../data/test/tcdc_eatm_latlon_subset_20080101_20121130.nc','r')
+    #     var = f.variables.keys()[-1]
+    #     arr = np.mean(f.variables[var][:], axis=1)  # average over all models
+    #     arr = np.sum(arr, axis=1)                   # sum over all hours
+    #     features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
+    #     newfeatures = np.empty_like(features)
+    #     newfeatures[:-1] = features[1:]
+    #     newfeatures[-1] = features[-1]
+    #     f.close()
+    #     return newfeatures, 'Acc. Rain from Tomorrow'    
     
     def _MT(self):
         '''
@@ -484,7 +544,8 @@ class features:
         arr = np.max(f.variables[var][:], axis=2) # take the max value on the hours axis
         arr = np.mean(arr, axis=1)                # average over all models
         features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
-        self.addfeat(features, 'Max Temp.')
+        f.close()
+        return features, 'Max Temp.'
     
     def _MTfY(self):
         '''
@@ -501,7 +562,8 @@ class features:
         newfeatures = np.empty_like(features)
         newfeatures[1:] = features[:-1]
         newfeatures[0] = features[0]
-        self.addfeat(newfeatures, 'Max Temp. from Yesterday')
+        f.close()
+        return newfeatures, 'Max Temp. from Yesterday'
     
     def _MTfT(self):
         '''
@@ -518,7 +580,8 @@ class features:
         newfeatures = np.empty_like(features)
         newfeatures[:-1] = features[1:]
         newfeatures[-1] = features[-1]
-        self.addfeat(newfeatures, 'Max Temp. from Tomorrow')
+        f.close()
+        return newfeatures, 'Max Temp. from Tomorrow'
         
     def _AP(self):
         '''
@@ -532,41 +595,43 @@ class features:
         arr = np.mean(f.variables[var][:], axis=1)  # average over all models
         arr = np.mean(arr, axis=1)                  # average over all hours
         features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
-        self.addfeat(features, 'Daily Mean Air Pressure')
+        f.close()
+        return features, 'Daily Mean Air Pressure'
 
-    def _APfY(self):
-        '''
-        Air Pressure from Yesterday
-        '''
-        if self.which == 'train':
-            f=Dataset('../../data/train/pres_msl_latlon_subset_19940101_20071231.nc','r')
-        else:
-            f=Dataset('../../data/test/pres_msl_latlon_subset_20080101_20121130.nc','r')
-        var = f.variables.keys()[-1]
-        arr = np.mean(f.variables[var][:], axis=1)  # average over all models
-        arr = np.mean(arr, axis=1)                  # average over all hours
-        features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
-        newfeatures = np.empty_like(features)
-        newfeatures[1:] = features[:-1]
-        newfeatures[0] = features[0]
-        self.addfeat(newfeatures, 'Daily Mean Air Pressure from Yesterday')
-
-    def _APfT(self):
-        '''
-        Air Pressure from Tomorrow
-        '''
-        if self.which == 'train':
-            f=Dataset('../../data/train/pres_msl_latlon_subset_19940101_20071231.nc','r')
-        else:
-            f=Dataset('../../data/test/pres_msl_latlon_subset_20080101_20121130.nc','r')
-        var = f.variables.keys()[-1]
-        arr = np.mean(f.variables[var][:], axis=1)  # average over all models
-        arr = np.mean(arr, axis=1)                  # average over all hours
-        features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
-        newfeatures = np.empty_like(features)
-        newfeatures[:-1] = features[1:]
-        newfeatures[-1] = features[-1]
-        self.addfeat(newfeatures, 'Daily Mean Air Pressure from Tomorrow')
-
+    # def _APfY(self):
+    #     '''
+    #     Air Pressure from Yesterday
+    #     '''
+    #     if self.which == 'train':
+    #         f=Dataset('../../data/train/pres_msl_latlon_subset_19940101_20071231.nc','r')
+    #     else:
+    #         f=Dataset('../../data/test/pres_msl_latlon_subset_20080101_20121130.nc','r')
+    #     var = f.variables.keys()[-1]
+    #     arr = np.mean(f.variables[var][:], axis=1)  # average over all models
+    #     arr = np.mean(arr, axis=1)                  # average over all hours
+    #     features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
+    #     newfeatures = np.empty_like(features)
+    #     newfeatures[1:] = features[:-1]
+    #     newfeatures[0] = features[0]
+    #     f.close()
+    #     return newfeatures, 'Daily Mean Air Pressure from Yesterday'
+    # 
+    # def _APfT(self):
+    #     '''
+    #     Air Pressure from Tomorrow
+    #     '''
+    #     if self.which == 'train':
+    #         f=Dataset('../../data/train/pres_msl_latlon_subset_19940101_20071231.nc','r')
+    #     else:
+    #         f=Dataset('../../data/test/pres_msl_latlon_subset_20080101_20121130.nc','r')
+    #     var = f.variables.keys()[-1]
+    #     arr = np.mean(f.variables[var][:], axis=1)  # average over all models
+    #     arr = np.mean(arr, axis=1)                  # average over all hours
+    #     features = arr.reshape( arr.shape[0], arr.shape[1]*arr.shape[2] )
+    #     newfeatures = np.empty_like(features)
+    #     newfeatures[:-1] = features[1:]
+    #     newfeatures[-1] = features[-1]
+    #     f.close()
+    #     return newfeatures, 'Daily Mean Air Pressure from Tomorrow'
 
         

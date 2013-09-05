@@ -4,9 +4,8 @@ A library of models and model helper functions for the
 '''
 
 from datalib import *
-from sklearn import linear_model, grid_search, feature_selection
+from sklearn import linear_model, grid_search, feature_selection, svm
 import multiprocessing as mp
-
 
 '''
 ################################################################################################
@@ -71,6 +70,25 @@ plt.xlabel('feature')
 plt.ylabel('model')
 plt.show()
 '''
+
+# example:
+# params = {'epsilon':np.linspace(0,1,11), 'gamma':np.logspace(-4,4,10), 'C':np.logspace(-2,4,10)}
+def RunSVRCVGridSearch( trainX, trainY, testX, params, verbose=True, save=False, n_jobs=int(.75*mp.cpu_count()) ):
+    '''
+    Run a || grid search for optimal SVR parameters.
+    '''
+    if verbose: print '\nChoosing best params and fitting model','#'*20,'\n'
+    model = svm.SVR(cache_size=1000) #large cache is faster for computers with lotsa ram
+    cvs = grid_search.GridSearchCV(model, params, n_jobs=n_jobs, verbose=int(verbose))
+    cvs.fit( trainX, trainY )
+    model = cvs.best_estimator_
+    
+    if verbose: print '\nComplete.'
+    if verbose: print 'Best parameters:\n', model.get_params()
+    
+    return model
+    
+
 def RunLassoCVGridSearch( trainX, trainY, testX, alphas, verbose=True, save=True, n_jobs=int(.75*mp.cpu_count()) ):
     '''
     Run a || grid search for optimal alpha parameter in a Lasso model.
@@ -128,24 +146,50 @@ def RunRidgeCVParallel( trainX, trainY, testX, alphas, verbose=True, save=True, 
     return model, predictions
 
 
-def RunLassoFeatureElimination( trainX, trainY, verbose=True ):
+def RunLassoFeatureElimination( trainX, trainY, verbose=True, alpha=None ):
     '''
     Use a Lasso fit to figure out what features are important.
     '''
-    if verbose: print '\nChoosing an alpha parameter\n','#'*20,'\n'
-    model = linear_model.LassoCV(verbose=verbose)
-    model.fit( trainX, trainY )
-    best_alpha = model.alpha_
+    if alpha == None:
+        if verbose: print '\nChoosing an alpha parameter\n','#'*20,'\n'
+        model = linear_model.LassoCV()
+        model.fit( trainX, trainY )
+        best_alpha = model.alpha_
+    else:
+        best_alpha = alpha
+    
     if verbose: print '\nUsing alpha=',best_alpha
     if verbose: print 'Searching for best feature set\n'
     
-    model = linear_model.Lasso(alpha=best_alpha)
-    rfe = feature_selection.RFECV( model, step=0.1, verbose=verbose )
+    model2 = linear_model.Lasso()
+    rfe = feature_selection.RFECV( estimator=model2, step=2, verbose=int(verbose) )
     rfe.fit( trainX, trainY )
     
     if verbose: print 'Found reduced feature set'
     return rfe.ranking_
 
+def RunRidgeFeatureElimination( trainX, trainY, verbose=True, alpha=None ):
+    '''
+    Use a Ridge fit to figure out what features are important.
+    '''
+    if alpha == None:
+        if verbose: print '\nChoosing an alpha parameter\n','#'*20,'\n'
+        model = linear_model.RidgeCV( alphas=np.logspace(-1,4,25) )
+        model.fit( trainX, trainY )
+        best_alpha = model.alpha_
+    else:
+        best_alpha = alpha
+
+    if verbose: print '\nUsing alpha=',best_alpha
+    if verbose: print 'Searching for best feature set\n'
+
+    model2 = linear_model.Ridge()
+    rfe = feature_selection.RFECV( estimator=model2, step=0.01, verbose=int(verbose) )
+    rfe.fit( trainX, trainY )
+
+    if verbose: print 'Found reduced feature set'
+    return rfe
+    
     
     
 def SimpleInterpolatedFlux(f=Dataset('../../data/train/dswrf_sfc_latlon_subset_19940101_20071231.nc','r')):
@@ -216,25 +260,51 @@ def SimpleInterpolatedFlux(f=Dataset('../../data/train/dswrf_sfc_latlon_subset_1
 # # appears to have chosen alpha=1000, l1_ratio=1.0, with MAE=2.3M
 
 
-######################################################
-# Run a Lasso to pick features and reduce the feature set, using
-# a random subset of the data examples (10%)
-######################################################
+# #####################################################
+# Run a Ridge to pick features and reduce the feature set.
+# Use a random subset of the data, and just a single MESONET location.
+# #####################################################
 F = features( which='train', verbose=True )
 F.calc_all_features()
 trainX = F.features
 times, trainY = load_MESONET('train.csv')
 # build a numpy mask with 10% ones and 90% zeros
 mask = []
+mesonet_n = 90
+mesonet_loc = np.recfromcsv('../../data/station_info.csv')[mesonet_n]
 for i in range(trainY.shape[0]):
     v = np.random.random()
-    if v<=0.1: mask.append(1)
+    if v<=0.2: mask.append(1)
     else: mask.append(0)
 mask = np.array(mask, dtype='bool')
-feat_ranking = RunLassoFeatureElimination( trainX[mask], trainY[mask] )
+rfe = RunRidgeFeatureElimination( trainX[mask], trainY[:,mesonet_n][mask] )
+feat_ranking = rfe.ranking_
 feat_names = np.array( F.featnames )
 good_features = feat_names[ feat_ranking == 1 ]
 print 'good features:',good_features
+plt.scatter( mesonet_loc[2], mesonet_loc[1], s=50 )
+lld = pickle.load( open('latlondict.p','r') )
+for row in feat_names[ feat_ranking == 3 ]:
+    n = int(row.split(' ')[-1])
+    lon,lat = lld[n]
+    plt.scatter( lon,lat, c='y', alpha=0.2 )
+for row in feat_names[ feat_ranking == 2 ]:
+    n = int(row.split(' ')[-1])
+    lon,lat = lld[n]
+    plt.scatter( lon,lat, c='g', alpha=0.2 )
+for row in feat_names[ feat_ranking == 1]:
+    n = int(row.split(' ')[-1])
+    lon,lat = lld[n]
+    plt.scatter( lon,lat, c='r', alpha=0.2 )
+plt.savefig('quickplot.png')
 
-
-
+# now, you can explore which GEFs # goes with which point
+# lld = pickle.load( open('latlongdict.p','r') )
+# coords of feature i can be found with lld[i], and the coords of
+# the zeroth MESONET point can be found with:
+# mesonet_locs = np.recfromcsv('../../data/station_info.csv')[10]  # needed only for interpolated features
+#
+# RESULTS SUMMARY:
+# Not entirely clear, but seems to point to the non-commented features (in the features class)
+#  as being the most important ones.  Will keep those for now.
+    
