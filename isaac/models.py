@@ -302,16 +302,20 @@ def RunStationModels( modelfunc, fname, nproc=-1, n_mesonet=98, verbose=False ):
     predictions = np.loadtxt( '../../data/sampleSubmission.csv', skiprows=1, delimiter=',' )
     for i in xrange(len(predictions_list)):
         predictions[:, i+1] = predictions_list[i]
-    fwriter = csv.writer( fname )
+    outf = open(fname,'w')
+    fwriter = csv.writer( outf )
     for i,row in enumerate(predictions):
         if i == 0:
             # pull in the header from the sampleSubmission
-            freader = csv.reader(open('../../data/sampleSubmission.csv','r'))
+            tmpf = open('../../data/sampleSubmission.csv','r')
+            freader = csv.reader( tmpf )
             fwriter.writerow( freader.next() )
+            tmpf.close()
         else:
             outrow = row.tolist()
             outrow[0] = int(outrow[0])
             fwriter.writerow( outrow )
+    outf.close()
     
     if verbose: print 'All done.'
         
