@@ -299,10 +299,9 @@ class features:
         else:
             return self.features.shape
     
-    def calc_features_near(self, n_mesonet, n=8, scale=True):
+    def return_feats_near(self, n_mesonet, n=9, scale=True):
         '''
-        Calculate the features for the <n> GEFs gridpoints nearest the <n_mesonet> station.
-        Automatically runs all features defined with an underscore at the front of the name.
+        Return the features for the <n> GEFs gridpoints nearest the <n_mesonet> station.
         '''
         lat,lon = self.mesonet_locs[n_mesonet][1], self.mesonet_locs[n_mesonet][2]
         sqdists = (self.GEFslat - lat)**2 + (self.GEFslon - lon)**2
@@ -310,18 +309,15 @@ class features:
         sort_sqdists.sort()
         indices_wanted = np.array([r[1] for r in sort_sqdists[:n]])
         
-        feat_funcs = [f for f in inspect.getmembers(self) if  (f[0][0]=='_' and f[0][1]!='_' and inspect.ismethod(f[1]))]
-        for f in feat_funcs:
-            if self.verbose: print 'calculating',f[0]
-            feats, name = f[1]()
-            self.addfeat( feats[:,indices_wanted], name )
+        features = self.features[:,indices_wanted]
         if scale:
             if self.verbose: print 'rescaling all input data'
             scl = StandardScaler()
-            self.features = scl.fit_transform(self.features)
+            features = scl.fit_transform(features)
             self.scaler = scl
+        return features
     
-    def calc_interpolated_feats(self, n_mesonet, scale=True):
+    def return_interpolated_feats(self, n_mesonet, scale=True):
         '''
         Calculate the GEFs features interpolated to the <n_mesonet> station.
         Automatically runs all features defined with an underscore at the front of the name.

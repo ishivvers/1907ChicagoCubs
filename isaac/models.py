@@ -281,14 +281,17 @@ def RunStationModels( modelfunc, fname, nproc=-1, n_mesonet=98, verbose=False ):
     if verbose: print 'Building argument list to distribute amongst cores'
     args_list = []
     times, alltrainY = load_MESONET('train.csv')
+    F_train = features( which='train', verbose=verbose )
+    F_train.calc_all_features( scale=False )
+    F_test = features( which='test', verbose=verbose )
+    F_test.calc_all_features( scale=False )
     for i in xrange(n_mesonet):
-        F_train = features( which='train', verbose=verbose )
-        F_train.calc_features_near( i, n=9, scale=True )
-        trainX = F_train.features
+        # get the training features and the training set scaler
+        trainX = F_train.return_feats_near( i, n=9, scale=True )
         trainY = alltrainY[:,i]
-        F_test = features( which='test', verbose=verbose )
-        F_test.calc_features_near( i, n=9, scale=False )
-        testX = F_train.scaler.transform( F_test.features )
+        testX = F_test.return_feats_near( i, n=9, scale=False )
+        # rescale the test features to the training set scaler
+        testX = F_train.scaler.transform( testX )
         args = (trainX, trainY, testX)
         args_list.append(args)
     
