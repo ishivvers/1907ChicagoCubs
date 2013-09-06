@@ -269,7 +269,8 @@ class features:
         feat_funcs = [f for f in inspect.getmembers(self) if  (f[0][0]=='_' and f[0][1]!='_' and inspect.ismethod(f[1]))]
         for f in feat_funcs:
             if self.verbose: print 'calculating',f[0]
-            self.addfeat( f[1]() )
+            feats, name = f[1]()
+            self.addfeat( feats, name )
         if scale:
             if self.verbose: print 'rescaling all input data'
             scl = StandardScaler()
@@ -317,7 +318,7 @@ class features:
             self.scaler = scl
         return features
     
-    def return_interpolated_feats(self, n_mesonet, scale=True):
+    def calc_interpolated_feats(self, n_mesonet, scale=True):
         '''
         Calculate the GEFs features interpolated to the <n_mesonet> station.
         Automatically runs all features defined with an underscore at the front of the name.
