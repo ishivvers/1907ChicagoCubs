@@ -252,7 +252,7 @@ def RunLasso( args, f_psearch=0.1, verbose=True ):
     trainX, trainY, testX = args
     if verbose: print '\nChoosing best alpha on',f_psearch*100,'percent of the data'
     mask = np.random.random( trainX.shape[0] ) < f_psearch
-    premodel = linear_model.LassoCV( alphas=100, cv=5, verbose=int(verbose) )
+    premodel = linear_model.LassoCV( n_alphas=100, cv=5, verbose=int(verbose) )
     premodel.fit( trainX[mask], trainY[mask] )
     alpha = premodel.alpha_
     
