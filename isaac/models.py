@@ -298,7 +298,7 @@ def RunStationModels( modelfunc, fname, nproc=-1, n_mesonet=98, verbose=False ):
     if verbose: print 'Feeding out tasks!'
     predictions_list = pool.map( modelfunc, args_list )
     
-    if verbose: print 'Saving result as a submission.'
+    if verbose: print 'Saving result to',fname
     predictions = np.loadtxt( '../../data/sampleSubmission.csv', skiprows=1, delimiter=',' )
     for i in xrange(len(predictions_list)):
         predictions[:, i+1] = predictions_list[i]

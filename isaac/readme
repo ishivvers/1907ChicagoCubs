@@ -11,13 +11,14 @@
 ------------------------------------------------
 ## to do: ##
 
-- I think the best solution is to use the features I have here and go for it
- - use some number of nearest GEFs points for each mesonet location
- - build a model for each mesonet site (easy parallel-wise)
-  - run a 5-fold CV search for best parameters on random 10% of the train data
-  - use those parameters to fit a model to all of the data
-  - use that model to predict the output
-  - repeat for N different model types
-- need to:
- - write functions that take in a trainX, trainY, testY and return a predictY for each model type
- - write a parallel wrapper that takes each of those and applies them to all 98 mesonet sites
+- see, for each model type, what reasonable parameter ranges are
+ - Lasso
+  - 10% data: alpha = [1369.8461156531112, 1647.7300780126602, 2141.0744283753411]
+  - 100% data: alpha = [1538.838239153323, 1498.4788530098087, 2277.6812060592451]
+ - ElasticNet
+  - 10% data: alpha = [13192.904104663443, 13804.812471163117, 24652.232464468696], l1_ratio = [1.0, 1.0, 1.0]
+  - 100% data: alpha = [15388.382391533247, 14984.788530098089, 22776.81206059243], l1_ratio = [1.0, 1.0, 1.0]
+ - Ridge
+  - 10% data: alpha = [0.0013219411484660286, 0.013530477745798061, 0.0042292428743894986]
+  - 100% data: alpha = [0.00083021756813197436, 0.010722672220103232, 0.0067341506577508212]
+ - 
