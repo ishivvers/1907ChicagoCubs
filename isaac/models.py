@@ -282,12 +282,12 @@ def RunStationModels( modelfunc, fname, nproc=-1, n_mesonet=98, verbose=False ):
     args_list = []
     times, alltrainY = load_MESONET('train.csv')
     for i in xrange(n_mesonet):
-        F_train = features( which='train' )
-        F_train.calc_features_near( i, n=9, scale=True, verbose=verbose )
+        F_train = features( which='train', verbose=verbose )
+        F_train.calc_features_near( i, n=9, scale=True )
         trainX = F_train.features
         trainY = alltrainY[:,i]
-        F_test = features( which='test' )
-        F_test.calc_features_near( i, n=9, scale=False, verbose=verbose )
+        F_test = features( which='test', verbose=verbose )
+        F_test.calc_features_near( i, n=9, scale=False )
         testX = F_train.scaler.transform( F_test.features )
         args = (trainX, trainY, testX)
         args_list.append(args)
