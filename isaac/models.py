@@ -6,6 +6,7 @@ A library of models and model helper functions for the
 from datalib import *
 from sklearn import linear_model, grid_search, feature_selection, svm
 import multiprocessing as mp
+import csv
 
 '''
 ################################################################################################
@@ -23,6 +24,7 @@ plt.ylabel('model')
 plt.show()
 
 '''
+
 def RunLassoCV( trainX, trainY, testX, verbose=True, save=True ):
     # use the built-in cross-validation routine to 
     #  figure out the best alpha parameter (alpha determines
@@ -241,6 +243,84 @@ def SimpleInterpolatedFlux(f=Dataset('../../data/train/dswrf_sfc_latlon_subset_1
     save_submission(predictions, 'InterpFlux_submission.csv')
 
 
+def RunLasso( args, f_psearch=0.1, verbose=True ):
+    '''
+    Run a Lasso model.
+    trainX, trainY, testX: you know what those are
+    f_psearch: the fraction of the test sample to use to choose hyperparameters (0 < f_psearch < 1)
+    '''
+    trainX, trainY, testX = args
+    if verbose: print '\nChoosing best alpha on',f_psearch*100,'percent of the data'
+    mask = np.random.random( trainX.shape[0] ) < f_psearch
+    premodel = linear_model.LassoCV( n_alphas=100, cv=5, verbose=int(verbose) )
+    premodel.fit( trainX[mask], trainY[mask] )
+    alpha = premodel.alpha_
+    
+    if verbose: print '\nUsing alpha =',alpha,'\nFitting model on full data'
+    model = linear_model.Lasso( alpha=alpha )
+    model.fit( trainX, trainY )
+    
+    if verbose: print '\nProducing estimates'
+    predictions = model.predict( testX )
+    if verbose: print '\nComplete.'
+    
+    return predictions
+
+
+def RunStationModels( modelfunc, fname, nproc=-1, n_mesonet=98, verbose=False ):
+    '''
+    Run an individual instance of modelfunc for each MESONET station parallel-wise,
+    using <nproc> cores (nproc=-1 uses all available cores).
+    <fname> is the name of the output submission file.
+    '''
+    if nproc<1 or nproc>mp.cpu_count():
+        pool = mp.Pool( mp.cpu_count() )
+    else:
+        pool = mp.Pool( nproc )
+    
+    if verbose: print 'Building argument list to distribute amongst cores'
+    args_list = []
+    times, alltrainY = load_MESONET('train.csv')
+    F_train = features( which='train', verbose=verbose )
+    F_train.calc_all_features( scale=False )
+    F_test = features( which='test', verbose=verbose )
+    F_test.calc_all_features( scale=False )
+    for i in xrange(n_mesonet):
+        # get the training features and the training set scaler
+        trainX = F_train.return_feats_near( i, n=9, scale=True )
+        trainY = alltrainY[:,i]
+        testX = F_test.return_feats_near( i, n=9, scale=False )
+        # rescale the test features to the training set scaler
+        testX = F_train.scaler.transform( testX )
+        args = (trainX, trainY, testX)
+        args_list.append(args)
+    
+    if verbose: print 'Feeding out tasks!'
+    predictions_list = pool.map( modelfunc, args_list )
+    
+    if verbose: print 'Saving result as a submission.'
+    predictions = np.loadtxt( '../../data/sampleSubmission.csv', skiprows=1, delimiter=',' )
+    for i in xrange(len(predictions_list)):
+        predictions[:, i+1] = predictions_list[i]
+    outf = open(fname,'w')
+    fwriter = csv.writer( outf )
+    for i,row in enumerate(predictions):
+        if i == 0:
+            # pull in the header from the sampleSubmission
+            tmpf = open('../../data/sampleSubmission.csv','r')
+            freader = csv.reader( tmpf )
+            fwriter.writerow( freader.next() )
+            tmpf.close()
+        else:
+            outrow = row.tolist()
+            outrow[0] = int(outrow[0])
+            fwriter.writerow( outrow )
+    outf.close()
+    
+    if verbose: print 'All done.'
+        
+
+RunStationModels( RunLasso, 'LassoSubmission.csv', verbose=True )
 
 # 
 # ######################################################
@@ -264,41 +344,41 @@ def SimpleInterpolatedFlux(f=Dataset('../../data/train/dswrf_sfc_latlon_subset_1
 # Run a Ridge to pick features and reduce the feature set.
 # Use a random subset of the data, and just a single MESONET location.
 # #####################################################
-F = features( which='train', verbose=True )
-F.calc_all_features()
-trainX = F.features
-times, trainY = load_MESONET('train.csv')
-# build a numpy mask with 10% ones and 90% zeros
-mask = []
-mesonet_n = 90
-mesonet_loc = np.recfromcsv('../../data/station_info.csv')[mesonet_n]
-for i in range(trainY.shape[0]):
-    v = np.random.random()
-    if v<=0.2: mask.append(1)
-    else: mask.append(0)
-mask = np.array(mask, dtype='bool')
-rfe = RunRidgeFeatureElimination( trainX[mask], trainY[:,mesonet_n][mask] )
-feat_ranking = rfe.ranking_
-feat_names = np.array( F.featnames )
-good_features = feat_names[ feat_ranking == 1 ]
-print 'good features:',good_features
-plt.scatter( mesonet_loc[2], mesonet_loc[1], s=50 )
-lld = pickle.load( open('latlondict.p','r') )
-for row in feat_names[ feat_ranking == 3 ]:
-    n = int(row.split(' ')[-1])
-    lon,lat = lld[n]
-    plt.scatter( lon,lat, c='y', alpha=0.2 )
-for row in feat_names[ feat_ranking == 2 ]:
-    n = int(row.split(' ')[-1])
-    lon,lat = lld[n]
-    plt.scatter( lon,lat, c='g', alpha=0.2 )
-for row in feat_names[ feat_ranking == 1]:
-    n = int(row.split(' ')[-1])
-    lon,lat = lld[n]
-    plt.scatter( lon,lat, c='r', alpha=0.2 )
-plt.savefig('quickplot.png')
-
-# now, you can explore which GEFs # goes with which point
+# F = features( which='train', verbose=True )
+# F.calc_all_features()
+# trainX = F.features
+# times, trainY = load_MESONET('train.csv')
+# # build a numpy mask with 10% ones and 90% zeros
+# mask = []
+# mesonet_n = 90
+# mesonet_loc = np.recfromcsv('../../data/station_info.csv')[mesonet_n]
+# for i in range(trainY.shape[0]):
+#     v = np.random.random()
+#     if v<=0.2: mask.append(1)
+#     else: mask.append(0)
+# mask = np.array(mask, dtype='bool')
+# rfe = RunRidgeFeatureElimination( trainX[mask], trainY[:,mesonet_n][mask] )
+# feat_ranking = rfe.ranking_
+# feat_names = np.array( F.featnames )
+# good_features = feat_names[ feat_ranking == 1 ]
+# print 'good features:',good_features
+# plt.scatter( mesonet_loc[2], mesonet_loc[1], s=50 )
+# lld = pickle.load( open('latlondict.p','r') )
+# for row in feat_names[ feat_ranking == 3 ]:
+#     n = int(row.split(' ')[-1])
+#     lon,lat = lld[n]
+#     plt.scatter( lon,lat, c='y', alpha=0.2 )
+# for row in feat_names[ feat_ranking == 2 ]:
+#     n = int(row.split(' ')[-1])
+#     lon,lat = lld[n]
+#     plt.scatter( lon,lat, c='g', alpha=0.2 )
+# for row in feat_names[ feat_ranking == 1]:
+#     n = int(row.split(' ')[-1])
+#     lon,lat = lld[n]
+#     plt.scatter( lon,lat, c='r', alpha=0.2 )
+# plt.savefig('quickplot.png')
+# 
+# # now, you can explore which GEFs # goes with which point
 # lld = pickle.load( open('latlongdict.p','r') )
 # coords of feature i can be found with lld[i], and the coords of
 # the zeroth MESONET point can be found with:
