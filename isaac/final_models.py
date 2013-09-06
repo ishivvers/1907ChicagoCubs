@@ -67,24 +67,17 @@ def RunSVR( args, f_psearch=0.1, verbose=True ):
     return predictions
 
 
-def RunRidge( args, f_psearch=0.1, verbose=True ):
+def RunRidge( args, verbose=True ):
     '''
     Run a Ridge model.
     trainX, trainY, testX: you know what those are
-    f_psearch: the fraction of the test sample to use to choose hyperparameters (0 < f_psearch < 1)
     '''
     trainX, trainY, testX = args
-    if verbose: print '\nChoosing best alpha on',f_psearch*100,'percent of the data'
-    mask = np.random.random( trainX.shape[0] ) < f_psearch
-    premodel = linear_model.RidgeCV( alphas=np.logspace(-5,5,100), cv=5 )
-    premodel.fit( trainX[mask], trainY[mask] )
-    alpha = premodel.alpha_
-    
-    if verbose: print '\nUsing alpha =',alpha,'\nFitting model on full data'
-    model = linear_model.Ridge( alpha=alpha )
+    if verbose: print '\nChoosing best alpha and fitting the model.'
+    model = linear_model.RidgeCV( alphas=np.logspace(-0,3,100), cv=5 )
     model.fit( trainX, trainY )
     
-    if verbose: print '\nProducing estimates'
+    if verbose: print '\nUsing alpha =',model.alpha_,'\nProducing estimates'
     predictions = model.predict( testX )
     if verbose: print '\nComplete.'
     
@@ -99,19 +92,11 @@ def RunElasticNet( args, f_psearch=0.1, verbose=True ):
     f_psearch: the fraction of the test sample to use to choose hyperparameters (0 < f_psearch < 1)
     '''
     trainX, trainY, testX = args
-    if verbose: print '\nChoosing best alpha on',f_psearch*100,'percent of the data'
-    mask = np.random.random( trainX.shape[0] ) < f_psearch
-    premodel = linear_model.ElasticNetCV( l1_ratio=[.1, .5, .7, .9, .95, .99, 1], n_alphas=50, cv=5, verbose=int(verbose) )
-    premodel.fit( trainX[mask], trainY[mask] )
-    alpha = premodel.alpha_
-    l1_ratio = premodel.l1_ratio_
-    
-    if verbose: print '\nUsing alpha =',alpha,'and l1_ratio = ',l1_ratio
-    if verbose: print 'Fitting model on full data'
-    model = linear_model.ElasticNet( alpha=alpha, l1_ratio=l1_ratio )
+    if verbose: print '\nChoosing best parameters and fitting the model.'
+    model = linear_model.ElasticNetCV( l1_ratio=[.5, .7, .9, .95, .99, .999, 1.0], n_alphas=100, cv=5, verbose=int(verbose) )
     model.fit( trainX, trainY )
     
-    if verbose: print '\nProducing estimates'
+    if verbose: print '\nUsing alpha =',model.alpha_,'and l1_ratio = ',model.l1_ratio_,'\nProducing estimates'
     predictions = model.predict( testX )
     if verbose: print '\nComplete.'
     
@@ -126,17 +111,11 @@ def RunLassoLARS( args, f_psearch=0.1, verbose=True ):
     f_psearch: the fraction of the test sample to use to choose hyperparameters (0 < f_psearch < 1)
     '''
     trainX, trainY, testX = args
-    if verbose: print '\nChoosing best alpha on',f_psearch*100,'percent of the data'
-    mask = np.random.random( trainX.shape[0] ) < f_psearch
-    premodel = linear_model.LassoLarsCV( cv=5, verbose=int(verbose), normalize=False )
-    premodel.fit( trainX[mask], trainY[mask] )
-    alpha = premodel.alpha_
-    
-    if verbose: print '\nUsing alpha =',alpha,'\nFitting model on full data'
-    model = linear_model.LassoLars( alpha=alpha, normalize=False )
+    if verbose: print '\nChoosing best alpha and fitting the model'
+    model = linear_model.LassoLarsCV( cv=5, verbose=int(verbose), normalize=False )
     model.fit( trainX, trainY )
     
-    if verbose: print '\nProducing estimates'
+    if verbose: print '\nUsing alpha =',model.alpha_,'\nProducing estimates'
     predictions = model.predict( testX )
     if verbose: print '\nComplete.'
     
@@ -150,17 +129,11 @@ def RunLasso( args, f_psearch=0.1, verbose=True ):
     f_psearch: the fraction of the test sample to use to choose hyperparameters (0 < f_psearch < 1)
     '''
     trainX, trainY, testX = args
-    if verbose: print '\nChoosing best alpha on',f_psearch*100,'percent of the data'
-    mask = np.random.random( trainX.shape[0] ) < f_psearch
-    premodel = linear_model.LassoCV( n_alphas=100, cv=5, verbose=int(verbose) )
-    premodel.fit( trainX[mask], trainY[mask] )
-    alpha = premodel.alpha_
-    
-    if verbose: print '\nUsing alpha =',alpha,'\nFitting model on full data'
-    model = linear_model.Lasso( alpha=alpha )
+    if verbose: print '\nChoosing best alpha and fitting the model.'
+    model = linear_model.LassoCV( n_alphas=100, cv=5, verbose=int(verbose) )
     model.fit( trainX, trainY )
     
-    if verbose: print '\nProducing estimates'
+    if verbose: print '\nUsing alpha =',model.alpha_,'\nProducing estimates'
     predictions = model.predict( testX )
     if verbose: print '\nComplete.'
     

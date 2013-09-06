@@ -12,13 +12,7 @@
 ## to do: ##
 
 - see, for each model type, what reasonable parameter ranges are
- - Lasso
-  - 10% data: alpha = [1369.8461156531112, 1647.7300780126602, 2141.0744283753411]
-  - 100% data: alpha = [1538.838239153323, 1498.4788530098087, 2277.6812060592451]
- - ElasticNet
-  - 10% data: alpha = [13192.904104663443, 13804.812471163117, 24652.232464468696], l1_ratio = [1.0, 1.0, 1.0]
-  - 100% data: alpha = [15388.382391533247, 14984.788530098089, 22776.81206059243], l1_ratio = [1.0, 1.0, 1.0]
- - Ridge
-  - 10% data: alpha = [0.0013219411484660286, 0.013530477745798061, 0.0042292428743894986]
-  - 100% data: alpha = [0.00083021756813197436, 0.010722672220103232, 0.0067341506577508212]
- - 
+- All linear models need to fit on all of the data, can't choose hyperparameters on subset of data
+- SVR, I'm testing now
+ 10% of data: {'C': 100000.0, 'epsilon': 100.0, 'gamma': 0.0016681005372000592}
+ 100% of data: ?
