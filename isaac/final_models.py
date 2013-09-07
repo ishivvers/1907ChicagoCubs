@@ -192,17 +192,15 @@ def RunStationModels( modelfunc, fname, nproc=-1, mesonets=range(98), verbose=Fa
         predictions[:, i+1] = predictions_list[i]
     outf = open(fname,'w')
     fwriter = csv.writer( outf )
+    # pull in the header from the sampleSubmission
+    tmpf = open('../../data/sampleSubmission.csv','r')
+    freader = csv.reader( tmpf )
+    fwriter.writerow( freader.next() )
+    tmpf.close()
     for i,row in enumerate(predictions):
-        if i == 0:
-            # pull in the header from the sampleSubmission
-            tmpf = open('../../data/sampleSubmission.csv','r')
-            freader = csv.reader( tmpf )
-            fwriter.writerow( freader.next() )
-            tmpf.close()
-        else:
-            outrow = row.tolist()
-            outrow[0] = int(outrow[0])
-            fwriter.writerow( outrow )
+        outrow = row.tolist()
+        outrow[0] = int(outrow[0])
+        fwriter.writerow( outrow )
     outf.close()
     
     if verbose: print 'All done.'
