@@ -18,6 +18,7 @@ from sklearn.preprocessing import StandardScaler
 import sunrise
 import datetime
 import scipy.interpolate
+from copy import copy
 
 
 VARIABLE_NAMES = ['apcp_sfc','dlwrf_sfc','dswrf_sfc','pres_msl','pwat_eatm','spfh_2m','tcdc_eatm',
@@ -656,31 +657,33 @@ class features:
         return features, 'Max Change in Air Pressure'
         
     def sunrise_sunset(self,lat, lon, delta_hours):
-        s = sunrise.sun( lat, lon-360)
+        s = sunrise.sun( lat, 360- lon)
         if self.which == 'train':
             date_start = datetime.datetime(1994,1,1)
         elif self.which == 'test':
             date_start = datetime.datetime(2007,1,1, 2)
         else: date_start = datetime.datetime(2009,1,1,2)
 
-        utc_time = date_start + datetime.timedelta( delta_hours/24.+.5 )
+        utc_time = date_start + datetime.timedelta( delta_hours/24)
         srise, sset = s.sunrise(when = utc_time), s.sunset(when = utc_time)
         return srise, sset
 
     def solar_fit_integ(self, hrs, values, stds):
         ww = np.where( stds == 0)
-        stds[ww] = min(stds)/10.
-        weights = 1/stds
+        weights = np.empty_like( stds )
+        weights[1:-1] = 1/stds[1:-1]
+        weights[ww] = max(weights) *3
         new_hours = np.linspace(hrs[0], hrs[-1], 20)
-        spl = interpolate.splrep( hrs, values, w = weights)
-        spleval = interpolate.splev( new_hrs, spl)
-        splinteg = interpolate.splint(hrs[0], hrs[-1], spleval )
+        
+        spl = scipy.interpolate.splrep( hrs, values, w = weights,s=100, quiet = 1)
+        #spleval = scipy.interpolate.splev( new_hours, spl)
+        splinteg = scipy.interpolate.splint(hrs[0], hrs[-1], (spl[0],spl[1], 3) )
         return splinteg
 
 
-    def _AAFITLWF(self):
+    def _FITSWF(self):
         
-        f = Dataset('../../data/%s/dlwrf_sfc_latlon_subset_19940101_20071231.nc' % self.which,'r')
+        f = Dataset('../../data/%s/dswrf_sfc_latlon_subset_19940101_20071231.nc' % self.which,'r')
 
         var = f.variables.keys()[-1]
         arr = f.variables[var][:]
@@ -688,19 +691,24 @@ class features:
         dh -= dh[0]
         solar_flux_point = np.zeros((len(dh),len(lat), len(lon)))
         for i, h in enumerate(dh):
-            print h
             for j, Lat in enumerate(lat):
                 for k, Lon in enumerate(lon):
                     fit_hours = np.zeros(len(hours)+2)
                     fit_vals = np.zeros(len(hours)+2)
                     fit_stds = np.zeros(len(hours)+2)
-                    fit_hours[0], fit_hours[-1] = self.sunrise_sunset( Lat, Lon, h)
+                    srise, sset = self.sunrise_sunset( Lat, Lon, h)
+                    if srise > 12: srise = 12
+                    if sset < 24: sset = 24
+                    fit_hours[0], fit_hours[-1] = srise - .5, sset+.5
                     fit_hours[1:-1] = hours
-                    fit_vals[1:-1] = var[i,0,:,j,k]
-                    fit_stds[1:-1] = np.std(var[i,:,:,j,k], axis = 1)
+                    fit_vals[1:-1] = arr[i,0,:,j,k]
+                    fit_stds[1:-1] = np.std(arr[i,:,:,j,k], axis = 0)
                     solar_fit = self.solar_fit_integ(fit_hours, fit_vals, fit_stds)
-                    solar_flux_point[i,j,h]= solar_fit
-        features = solar_flux_point
+                    
+                    if (( float('nan') == solar_fit) or (float('inf')== solar_fit)):
+                        print fit_hours, fit_vals, fit_stds
+                    solar_flux_point[i,j, k]= solar_fit
+        features = solar_flux_point.reshape( len(dh),len(lat)*len(lon) )
         
         newfeatures = np.empty_like(features)
         newfeatures[:-1] = features[1:]
