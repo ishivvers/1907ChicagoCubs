@@ -205,10 +205,10 @@ def RunStationModels( modelfunc, fname, nproc=-1, mesonets=range(98), verbose=Fa
     
     if verbose: print 'All done.'
         
-
-RunStationModels( RunLasso, 'LassoSubmission.csv', verbose=True )
-RunStationModels( RunLassoLARS, 'LassoLARSSubmission.csv', verbose=True )
-RunStationModels( RunElasticNet, 'ElasticNetSubmission.csv', verbose=True )
-RunStationModels( RunRidge, 'RidgeSubmission.csv', verbose=True )
-RunStationModels( RunSVR, 'SVRSubmission.csv', verbose=True )
-RunStationModels( RunRandomForest, 'RandomForestSubmission.csv', verbose=True )
+if __name__ == '__main__':
+    RunStationModels( RunLasso, 'LassoSubmission.csv', verbose=True )
+    RunStationModels( RunLassoLARS, 'LassoLARSSubmission.csv', verbose=True )
+    RunStationModels( RunElasticNet, 'ElasticNetSubmission.csv', verbose=True )
+    RunStationModels( RunRidge, 'RidgeSubmission.csv', verbose=True )
+    RunStationModels( RunSVR, 'SVRSubmission.csv', verbose=True )
+    RunStationModels( RunRandomForest, 'RandomForestSubmission.csv', verbose=True )
