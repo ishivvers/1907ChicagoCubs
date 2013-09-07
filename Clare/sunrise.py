@@ -1,6 +1,6 @@
 from math import cos,sin,acos,asin,tan
 from math import degrees as deg, radians as rad
-from datetime import date,datetime,time
+from datetime import date,datetime,time, timedelta
 
 # this module is not provided here. See text.
 #from timezone import LocalTimezone
@@ -58,7 +58,8 @@ class sun:
   m      = int(minutes)
   seconds= (minutes-m)*60
   s      = int(seconds)
-  return hours #time(hour=h,minute=m,second=s)
+
+  return hours  #time(hour=h,minute=m,second=s)
 
  def __preptime(self,when):
   """
