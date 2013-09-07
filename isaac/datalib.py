@@ -279,17 +279,14 @@ class features:
             
     def addfeat(self, features, name):
         '''
-        Add an array of features with shape=(n_examples, n_features) to the self.features
+        Add an array of features with shape=(n_examples, n_GEFS_points, n_features) to the self.features
         array.
-        Uses the self.gefsmask array (must be a numpy boolean array) to use only features
-        from certain GEFS stations.
         '''
         if self.features == None:
             self.features = features
         else:
-            self.features = np.hstack( (self.features,features) )
-        for i in range(features.shape[1]):
-            self.featnames.append(name+' '+str(i))
+            self.features = np.dstack( (self.features,features) )
+        self.featnames.append(name)
     
     def getshape(self):
         '''
@@ -310,7 +307,8 @@ class features:
         sort_sqdists.sort()
         indices_wanted = np.array([r[1] for r in sort_sqdists[:n]])
         
-        features = self.features[:,indices_wanted]
+        features = self.features[:,indices_wanted,:]
+        features = features.reshape( (features.shape[0], features.shape[1]*features.shape[2]) )
         if scale:
             if self.verbose: print 'rescaling all input data'
             scl = StandardScaler()
@@ -318,26 +316,26 @@ class features:
             self.scaler = scl
         return features
     
-    def calc_interpolated_feats(self, n_mesonet, scale=True):
-        '''
-        Calculate the GEFs features interpolated to the <n_mesonet> station.
-        Automatically runs all features defined with an underscore at the front of the name.
-        '''
-        lat,lon = self.mesonet_locs[n_mesonet][1], self.mesonet_locs[n_mesonet][2]
-        
-        feat_funcs = [f for f in inspect.getmembers(self) if  (f[0][0]=='_' and f[0][1]!='_' and inspect.ismethod(f[1]))]
-        self.features = np.empty( (self.n_samples, len(feat_funcs)) )
-        for n_feat,f in enumerate(feat_funcs):
-            if self.verbose: print 'calculating and interpolating',f[0]
-            feats, name = f[1]()
-            for day in range(feats.shape[0]):
-                F = interp2d(self.GEFslat, self.GEFslon, feats[day], kind='linear', bounds_error=True)
-                self.features[day, n_feat] = F( lat, lon )
-        if scale:
-            if self.verbose: print 'rescaling all input data'
-            scl = StandardScaler()
-            self.features = scl.fit_transform(self.features)
-            self.scaler = scl
+    # def calc_interpolated_feats(self, n_mesonet, scale=True):
+    #     '''
+    #     Calculate the GEFs features interpolated to the <n_mesonet> station.
+    #     Automatically runs all features defined with an underscore at the front of the name.
+    #     '''
+    #     lat,lon = self.mesonet_locs[n_mesonet][1], self.mesonet_locs[n_mesonet][2]
+    #     
+    #     feat_funcs = [f for f in inspect.getmembers(self) if  (f[0][0]=='_' and f[0][1]!='_' and inspect.ismethod(f[1]))]
+    #     self.features = np.empty( (self.n_samples, len(feat_funcs)) )
+    #     for n_feat,f in enumerate(feat_funcs):
+    #         if self.verbose: print 'calculating and interpolating',f[0]
+    #         feats, name = f[1]()
+    #         for day in range(feats.shape[0]):
+    #             F = interp2d(self.GEFslat, self.GEFslon, feats[day], kind='linear', bounds_error=True)
+    #             self.features[day, n_feat] = F( lat, lon )
+    #     if scale:
+    #         if self.verbose: print 'rescaling all input data'
+    #         scl = StandardScaler()
+    #         self.features = scl.fit_transform(self.features)
+    #         self.scaler = scl
     
     ##################################################################
     ## FEATURES

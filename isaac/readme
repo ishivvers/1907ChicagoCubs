@@ -11,13 +11,8 @@
 ------------------------------------------------
 ## to do: ##
 
-- I think the best solution is to use the features I have here and go for it
- - use some number of nearest GEFs points for each mesonet location
- - build a model for each mesonet site (easy parallel-wise)
-  - run a 5-fold CV search for best parameters on random 10% of the train data
-  - use those parameters to fit a model to all of the data
-  - use that model to predict the output
-  - repeat for N different model types
-- need to:
- - write functions that take in a trainX, trainY, testY and return a predictY for each model type
- - write a parallel wrapper that takes each of those and applies them to all 98 mesonet sites
+- see, for each model type, what reasonable parameter ranges are
+- All linear models need to fit on all of the data, can't choose hyperparameters on subset of data
+- SVR, I'm testing now
+ 10% of data: {'C': 100000.0, 'epsilon': 100.0, 'gamma': 0.0016681005372000592}
+ 100% of data: ?
