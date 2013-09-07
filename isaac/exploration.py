@@ -4,6 +4,43 @@ A set of scripts/functions that are helpful when looking at the data.
 
 from datalib import *
 
+# for example, plot up the cloud cover data
+#f = Dataset('../../data/test/tcdc_eatm_latlon_subset_20080101_20121130.nc','r')
+# radiation flux measure
+#f = Dataset('../../data/test/dswrf_sfc_latlon_subset_20080101_20121130.nc','r')
+#map_variable_movie(f)
+def map_variable_movie(f, ens=0):
+    '''
+    Map variable in a GEFS file as a function of time.
+    f: a netCDF4 Dataset object created from a GEFS file.
+    ens: the index of the ensemble member to use
+    '''
+    var = f.variables.keys()[-1]    # the name of the variable encoded in f
+    arr = f.variables[var]          # the variable array, accessed as var[...]
+    days = f.variables['time'][:]
+    hours = f.variables['fhour'][:]
+    maxval = np.max(arr[:,ens,:,:,:]) # used to keep the plot size stable
+    minval = np.min(arr[:,ens,:,:,:])
+
+    plt.ion()                       # allows animation
+    fig = plt.figure( figsize=(10,8) )
+    ax = fig.gca(projection='3d')
+    X,Y = np.meshgrid( f.variables['lon'][:]-360, f.variables['lat'][:] )
+    ax.set_xlabel('lon')
+    ax.set_ylabel('lat')
+    ax.set_zlabel(var)
+    for i in range(arr.shape[0]):
+        print i
+        for j in range(arr.shape[2]):
+            t = days[i] + hours[j] # the displayed time is hours since 1800-01-01 00:00:00
+            Z = arr[i,ens,j,:,:]
+            lines = ax.plot_wireframe(X, Y, Z)
+            ax.set_zlim(minval, .5*maxval)
+            label = ax.annotate('time: '+str(t), (.7,.8), xycoords='figure fraction')
+            plt.draw()
+            #sleep(.05)            # uncomment to slow down animation, or if it freezes
+            lines.remove()
+            label.remove()
 
 def plot_interpolated(f=Dataset('../../data/test/dswrf_sfc_latlon_subset_20080101_20121130.nc','r'),
                         day=1000, hour=2, ens=0):

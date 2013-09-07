@@ -140,11 +140,13 @@ def RunLasso( args, verbose=True ):
     return predictions
 
 
-def RunStationModels( modelfunc, fname, nproc=-1, n_mesonet=98, verbose=False ):
+def RunStationModels( modelfunc, fname, nproc=-1, mesonets=range(98), verbose=False, internal_test=0 ):
     '''
     Run an individual instance of modelfunc for each MESONET station parallel-wise,
     using <nproc> cores (nproc=-1 uses all available cores).
     <fname> is the name of the output submission file.
+    <internal_test> can be an integer number indicating how much of training set to use as the test set,
+     so you can run local error estimates.
     '''
     if nproc<1 or nproc>mp.cpu_count():
         pool = mp.Pool( mp.cpu_count() )
@@ -158,13 +160,19 @@ def RunStationModels( modelfunc, fname, nproc=-1, n_mesonet=98, verbose=False ):
     F_train.calc_all_features( scale=False )
     F_test = features( which='test', verbose=verbose )
     F_test.calc_all_features( scale=False )
-    for i in xrange(n_mesonet):
+    for i in mesonets:
         # get the training features and the training set scaler
         trainX = F_train.return_feats_near( i, n=9, scale=True )
         trainY = alltrainY[:,i]
-        testX = F_test.return_feats_near( i, n=9, scale=False )
-        # rescale the test features to the training set scaler
-        testX = F_train.scaler.transform( testX )
+        if internal_test > 0:
+            trnX = trainX[:-internal_test]
+            trainY = trainY[:-internal_test]
+            testX = trainX[-internal_test:]
+            trainX = trnX
+        else:
+            testX = F_test.return_feats_near( i, n=9, scale=False )
+            # rescale the test features to the training set scaler
+            testX = F_train.scaler.transform( testX )
         args = (trainX, trainY, testX)
         args_list.append(args)
     
@@ -172,7 +180,14 @@ def RunStationModels( modelfunc, fname, nproc=-1, n_mesonet=98, verbose=False ):
     predictions_list = pool.map( modelfunc, args_list )
     
     if verbose: print 'Saving result to',fname
-    predictions = np.loadtxt( '../../data/sampleSubmission.csv', skiprows=1, delimiter=',' )
+
+    if internal_test > 0:
+        # use the correct dates for these predictions, pulled from train.csv
+        predictions = np.loadtxt( '../../data/train.csv', skiprows=1, delimiter=',' )
+        predictions = predictions[-internal_test:]
+    else:
+        # use the correct dates for these predictions, pulled from sampleSubmission.csv
+        predictions = np.loadtxt( '../../data/sampleSubmission.csv', skiprows=1, delimiter=',' )
     for i in xrange(len(predictions_list)):
         predictions[:, i+1] = predictions_list[i]
     outf = open(fname,'w')
@@ -193,4 +208,9 @@ def RunStationModels( modelfunc, fname, nproc=-1, n_mesonet=98, verbose=False ):
     if verbose: print 'All done.'
         
 
-#RunStationModels( RunLasso, 'LassoSubmission.csv', verbose=True )
+RunStationModels( RunLasso, 'LassoSubmission.csv', verbose=True )
+RunStationModels( RunLassoLARS, 'LassoLARSSubmission.csv', verbose=True )
+RunStationModels( RunElasticNet, 'ElasticNetSubmission.csv', verbose=True )
+RunStationModels( RunRidge, 'RidgeSubmission.csv', verbose=True )
+RunStationModels( RunSVR, 'SVRSubmission.csv', verbose=True )
+RunStationModels( RunRandomForest, 'RandomForestSubmission.csv', verbose=True )

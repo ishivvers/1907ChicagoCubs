@@ -4,15 +4,15 @@
  - a library of generally-useful functions
 - exploration.py
  - a set of scripts used for initial exploration of the data (in functional form)
-- models.py
+- final_models.py
  - actual implementations of models
 
 
 ------------------------------------------------
 ## to do: ##
 
-- see, for each model type, what reasonable parameter ranges are
-- All linear models need to fit on all of the data, can't choose hyperparameters on subset of data
-- SVR, I'm testing now
- 10% of data: {'C': 100000.0, 'epsilon': 100.0, 'gamma': 0.0016681005372000592}
- 100% of data: ?
+------------------------------------------------
+## results: ##
+
+- internal MAE:
+ - Lasso, 1000 test points, MAE = 2.25K

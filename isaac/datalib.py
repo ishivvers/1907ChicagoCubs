@@ -18,46 +18,6 @@ from sklearn.preprocessing import StandardScaler
 VARIABLE_NAMES = ['apcp_sfc','dlwrf_sfc','dswrf_sfc','pres_msl','pwat_eatm','spfh_2m','tcdc_eatm',
                   'tcolc_eatm','tmax_2m','tmin_2m','tmp_2m','tmp_sfc','ulwrf_sfc','ulwrf_tatm','uswrf_sfc']
 
-# for example, plot up the cloud cover data
-#f = Dataset('../../data/test/tcdc_eatm_latlon_subset_20080101_20121130.nc','r')
-# radiation flux measure
-#f = Dataset('../../data/test/dswrf_sfc_latlon_subset_20080101_20121130.nc','r')
-#map_variable_movie(f)
-def map_variable_movie(f, ens=0):
-    '''
-    Map variable in a GEFS file as a function of time.
-    f: a netCDF4 Dataset object created from a GEFS file.
-    ens: the index of the ensemble member to use
-    '''
-    var = f.variables.keys()[-1]    # the name of the variable encoded in f
-    arr = f.variables[var]          # the variable array, accessed as var[...]
-    days = f.variables['time'][:]
-    hours = f.variables['fhour'][:]
-    maxval = np.max(arr[:,ens,:,:,:]) # used to keep the plot size stable
-    minval = np.min(arr[:,ens,:,:,:])
-
-    plt.ion()                       # allows animation
-    fig = plt.figure()
-    ax = fig.gca(projection='3d')
-    X,Y = np.meshgrid( f.variables['lon'][:]-360, f.variables['lat'][:] )
-    ax.set_xlabel('lon')
-    ax.set_ylabel('lat')
-    ax.set_zlabel(var)
-    for i in range(arr.shape[0]):
-        print i
-        for j in range(arr.shape[2]):
-            t = days[i] + hours[j] # the displayed time is hours since 1800-01-01 00:00:00
-            Z = arr[i,ens,j,:,:]
-            lines = ax.plot_wireframe(X, Y, Z)
-            ax.set_zlim(minval, maxval)
-            label = ax.annotate('time: '+str(t), (.7,.8), xycoords='figure fraction')
-            plt.draw()
-            #sleep(.05)            # uncomment to slow down animation, or if it freezes
-            lines.remove()
-            label.remove()
-
-
-
 # for example, find the interpolated value at 265.5, 31.5 at 12:00 on the 10th day for the 1st ensemble member
 #F = create_2d_interpolation(f, 10, 0, 1)
 #value = F(265.5, 31.5)
@@ -101,26 +61,6 @@ def return_nearest_value(f, lon, lat, day, hour, ens=0):
     j = np.argmin( np.abs(f.variables['lat'][:] - y) )
     val = f.variables[var][day,ens,hour,j,i]
     return val
-
-
-def save_submission(predictions, name, data_dir='../../data/'):
-    '''
-    Save submission in the same format as the sampleSubmission.
-    predictions: a numpy array of predictions.
-    name: output file name.
-    '''
-    fexample = open( data_dir+'sampleSubmission.csv', 'r' )
-    fout = open( data_dir+name, 'w' )
-    fReader = csv.reader( fexample, delimiter=',', skipinitialspace=True )
-    fwriter = csv.writer( fout )
-    for i,row in enumerate( fReader ):
-    	if i == 0:
-    		fwriter.writerow( row )
-    	else:
-    		row[1:] = predictions[i-1]
-    		fwriter.writerow( row )
-    fexample.close()
-    fout.close()
 
 
 def load_MESONET(name, data_dir='../../data/'):
@@ -178,15 +118,6 @@ def load_GEFS(which, variables, data_dir='../../data/', average_hours=True, aver
     return X
 
 
-def split_train( trainX, trainY, l=1796 ):
-    '''
-    Provides a quick way to seperate our training data into two sets
-    to do internal comparisions.  Default is to slice off the length
-    of the true test set (1796 values).
-    Returns s_trainX, s_trainY, s_testX, s_testY
-    '''
-    return trainX[:-l], trainY[:-l], trainX[-l:], trainY[-l:]
-
 def MAE( trueY, modelY ):
     '''
     Returns the Mean Absolute Error between arrays modelY and trueY
@@ -198,9 +129,7 @@ def MAE( trueY, modelY ):
     the first part, and then produce modeled estimates for the second
     part.  Then use this function to compare between your model predictions
     and the true values for the fake testing set.
-    
-    Should give a reasonable number to compare to the leaderboard scores if 
-    the fake testing set is the same length as the true.
+    Should give a reasonable number to compare to the leaderboard scores.
     '''
     return metrics.mean_absolute_error(trueY, modelY)
 
@@ -315,27 +244,6 @@ class features:
             features = scl.fit_transform(features)
             self.scaler = scl
         return features
-    
-    # def calc_interpolated_feats(self, n_mesonet, scale=True):
-    #     '''
-    #     Calculate the GEFs features interpolated to the <n_mesonet> station.
-    #     Automatically runs all features defined with an underscore at the front of the name.
-    #     '''
-    #     lat,lon = self.mesonet_locs[n_mesonet][1], self.mesonet_locs[n_mesonet][2]
-    #     
-    #     feat_funcs = [f for f in inspect.getmembers(self) if  (f[0][0]=='_' and f[0][1]!='_' and inspect.ismethod(f[1]))]
-    #     self.features = np.empty( (self.n_samples, len(feat_funcs)) )
-    #     for n_feat,f in enumerate(feat_funcs):
-    #         if self.verbose: print 'calculating and interpolating',f[0]
-    #         feats, name = f[1]()
-    #         for day in range(feats.shape[0]):
-    #             F = interp2d(self.GEFslat, self.GEFslon, feats[day], kind='linear', bounds_error=True)
-    #             self.features[day, n_feat] = F( lat, lon )
-    #     if scale:
-    #         if self.verbose: print 'rescaling all input data'
-    #         scl = StandardScaler()
-    #         self.features = scl.fit_transform(self.features)
-    #         self.scaler = scl
     
     ##################################################################
     ## FEATURES
