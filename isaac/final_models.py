@@ -19,8 +19,8 @@ def RunRandomForest( args, f_psearch=0.1, verbose=True ):
     if verbose: print '\nChoosing best parameters on',f_psearch*100,'percent of the data'
     mask = np.random.random( trainX.shape[0] ) < f_psearch
     
-    parameters = {'n_estimators':np.linspace(10, trainX.shape[1], 50), \
-                  'max_features':np.linspace(10, trainX.shape[1], 50)}
+    parameters = {'n_estimators':set(np.linspace(5, trainX.shape[1], 50).astype(int)), \
+                  'max_features':set(np.linspace(5, trainX.shape[1], 50).astype(int))}
     premodel = ensemble.RandomForestRegressor()
     gridCV = grid_search.GridSearchCV( premodel, parameters, cv=5, verbose=int(verbose) )
     gridCV.fit( trainX[mask], trainY[mask] )                  
@@ -35,7 +35,7 @@ def RunRandomForest( args, f_psearch=0.1, verbose=True ):
     predictions = model.predict( testX )
     if verbose: print '\nComplete.'
     
-    return fit_model, predictions
+    return predictions
 
 
 def RunSVR( args, f_psearch=0.1, verbose=True ):
@@ -85,7 +85,7 @@ def RunRidge( args, verbose=True ):
 
 
 
-def RunElasticNet( args, f_psearch=0.1, verbose=True ):
+def RunElasticNet( args, verbose=True ):
     '''
     Run an ElasticNet model.
     trainX, trainY, testX: you know what those are
@@ -104,7 +104,7 @@ def RunElasticNet( args, f_psearch=0.1, verbose=True ):
 
 
 
-def RunLassoLARS( args, f_psearch=0.1, verbose=True ):
+def RunLassoLARS( args, verbose=True ):
     '''
     Run a LassoLARS model.
     trainX, trainY, testX: you know what those are
@@ -122,7 +122,7 @@ def RunLassoLARS( args, f_psearch=0.1, verbose=True ):
     return predictions
 
 
-def RunLasso( args, f_psearch=0.1, verbose=True ):
+def RunLasso( args, verbose=True ):
     '''
     Run a Lasso model.
     trainX, trainY, testX: you know what those are
