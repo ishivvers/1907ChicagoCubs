@@ -19,16 +19,14 @@ def RunRandomForest( args, f_psearch=0.1, verbose=True ):
     if verbose: print '\nChoosing best parameters on',f_psearch*100,'percent of the data'
     mask = np.random.random( trainX.shape[0] ) < f_psearch
     
-    parameters = {'n_estimators':set(np.linspace(5, trainX.shape[1], 50).astype(int)), \
-                  'max_features':set(np.linspace(5, trainX.shape[1], 50).astype(int))}
+    parameters = {'n_estimators':np.linspace(5, trainX.shape[1], 25).astype(int)}
     premodel = ensemble.RandomForestRegressor()
     gridCV = grid_search.GridSearchCV( premodel, parameters, cv=5, verbose=int(verbose) )
     gridCV.fit( trainX[mask], trainY[mask] )                  
-    n_estimators = gridCV.best_params['n_estimators']
-    max_features = gridCV.best_params['max_features']
+    n_estimators = gridCV.best_params_['n_estimators']
     
     if verbose: print '\nUsing params = ',gridCV.best_params_,'\nFitting model on full data'
-    model = ensemble.RandomForestRegressor( n_estimators=n_estimators, max_features=max_features )
+    model = ensemble.RandomForestRegressor( n_estimators=n_estimators )
     model.fit( trainX, trainY )
     
     if verbose: print '\nProducing estimates'
