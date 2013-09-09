@@ -13,6 +13,3 @@
 
 ------------------------------------------------
 ## results: ##
-
-- internal MAE:
- - Lasso, 1000 test points, MAE = 2.25K
