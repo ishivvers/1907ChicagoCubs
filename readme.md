@@ -1,15 +1,7 @@
 # 2013 UCB Data Science Workshop #
 ## [AMS Solar Energy Prediction](http://www.kaggle.com/c/ams-2014-solar-energy-prediction-contest) ##
+__1907 Chicago Cubs__
 
-###_edit me!_###
-
----------------------------------------
-### 1907 Chicago Cubs ###
-
-- Isaac ::: ishivvers@berkeley.edu ::: (515) 419-1762
-- Clare ::: cmsaunders@berkeley.edu ::: (706) 207-6876
-- Alex ::: aga@berkeley.edu :::
-- Michael ::: mbeloc@gmail.com ::: (214) 681-0107
 
 ---------------------------------------
 ### GitHub ###
@@ -42,13 +34,12 @@
 ---------------------------------------
 ### sketch ###
 
-- We should chat about strategies, and start submitting models this week.
+- We submitted the models as built by the script <code>isaac/final_models.py</code>.
+- Each submission consisted of predictions from one model built for each MESONET point, based on features calculated for the nearest 9 GEFS gridpoints.
+- We did ok; at least we beat all of the benchmarks!
 
 
 ---------------------------------------
 ### to do ###
 
-- clone the GitHub repo
- - develop on your local computer in your folder, then pull/push to GitHub (so others can see the code)
- - science
-
+- nothing
