@@ -28,7 +28,7 @@ def RunRandomForest( args, f_psearch=0.1, verbose=True ):
     max_features = gridCV.best_params['max_features']
     
     if verbose: print '\nUsing params = ',gridCV.best_params_,'\nFitting model on full data'
-    model = RandomForestRegressor( n_estimators=n_estimators, max_features=max_features )
+    model = ensemble.RandomForestRegressor( n_estimators=n_estimators, max_features=max_features )
     model.fit( trainX, trainY )
     
     if verbose: print '\nProducing estimates'
